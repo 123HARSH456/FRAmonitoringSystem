@@ -89,11 +89,11 @@ function StateExteriorMaskLayer({ stateFeature, stateId }) {
       renderer: maskRenderer,
       interactive: false,
       style: {
-        fillColor: "#060a12",
+        fillColor: "#180b15",
         fillOpacity: 1.0,
         stroke: false,
         weight: 0,
-        color: "#060a12",
+        color: "#180b15",
         fillRule: "evenodd",
         className: "state-mask-no-transition",
       },
@@ -252,7 +252,7 @@ function createClaimMarkerIcon(riskLevel, isSelected, isInSelectedDistrict) {
   // - Normal / In Other Districts: 13px dot, dark slate border, subtle glow, visible normally, zIndex 100
   const dotSize = isSelected ? 18 : isInSelectedDistrict ? 15 : 13;
   const borderSize = isSelected ? 3 : isInSelectedDistrict ? 2.5 : 2;
-  const borderColor = isSelected ? "#38bdf8" : isInSelectedDistrict ? "#ffffff" : "#0f172a";
+  const borderColor = isSelected ? "#DBAFA0" : isInSelectedDistrict ? "#ffffff" : "#241120";
   const zIndex = isSelected ? 1000 : isInSelectedDistrict ? 500 : 100;
 
   // Beacon ripple ring for emphasized/blinking claims inside the active district
@@ -281,7 +281,7 @@ function createClaimMarkerIcon(riskLevel, isSelected, isInSelectedDistrict) {
           border: ${borderSize}px solid ${borderColor};
           box-shadow: ${
             isSelected
-              ? `0 0 16px ${color}, 0 0 0 4px #38bdf8`
+              ? `0 0 16px ${color}, 0 0 0 4px #DBAFA0`
               : isInSelectedDistrict
               ? `0 0 12px ${color}, 0 0 0 2px ${pulseRgbaSubtle}`
               : `0 0 6px ${color}`
@@ -385,9 +385,9 @@ export default function StateGISMap({
   }, [stateDistricts]);
 
   return (
-    <div className="relative w-full h-[360px] sm:h-[440px] lg:h-full min-h-[320px] sm:min-h-[420px] lg:min-h-0 rounded-xl overflow-hidden border border-slate-800 bg-[#060a12] shadow-2xl">
+    <div className="relative w-full h-[360px] sm:h-[440px] lg:h-full min-h-[320px] sm:min-h-[420px] lg:min-h-0 rounded-xl overflow-hidden border border-[#49243E]/80 bg-[#180b15] shadow-2xl">
       {loadingBoundary && (
-        <div className="absolute inset-0 z-[1500] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center text-cyan-400 font-mono text-xs">
+        <div className="absolute inset-0 z-[1500] bg-[#180b15]/85 backdrop-blur-sm flex items-center justify-center text-[#DBAFA0] font-mono text-xs">
           <span>Loading {state.name} satellite boundary &amp; districts...</span>
         </div>
       )}
@@ -396,7 +396,7 @@ export default function StateGISMap({
         center={state.center}
         zoom={state.zoom}
         scrollWheelZoom={true}
-        className="w-full h-full !bg-[#060a12]"
+        className="w-full h-full !bg-[#180b15]"
       >
         <MapController stateFeature={stateFeature} state={state} />
         <DistrictTooltipController />
@@ -433,9 +433,9 @@ export default function StateGISMap({
               const isDistSelected = isDistrictMatch(selectedDistrict, rawDist);
 
               return {
-                fillColor: "#0891b2",
-                fillOpacity: districtsLoaded ? (isDistSelected ? 0.25 : 0.05) : 0,
-                color: isDistSelected ? "#38bdf8" : "rgba(56, 189, 248, 0.4)",
+                fillColor: "#704264",
+                fillOpacity: districtsLoaded ? (isDistSelected ? 0.32 : 0.08) : 0,
+                color: isDistSelected ? "#DBAFA0" : "rgba(187, 132, 147, 0.4)",
                 weight: isDistSelected ? 2.5 : 1.0,
                 opacity: districtsLoaded ? 0.95 : 0,
                 className: "district-fade-in",
@@ -460,17 +460,17 @@ export default function StateGISMap({
 
                   l.setStyle({
                     weight: 2.4,
-                    color: "#38bdf8",
-                    fillColor: "#06b6d4",
-                    fillOpacity: isDistSelected ? 0.3 : 0.16,
+                    color: "#DBAFA0",
+                    fillColor: "#BB8493",
+                    fillOpacity: isDistSelected ? 0.38 : 0.22,
                   });
                   l.bringToFront();
 
                   if (mapInstance._districtTooltip) {
                     const tooltipContent = `
-                      <div style="font-family: monospace; font-size: 11px; color: #f8fafc; line-height: 1.3;">
-                        <strong style="color: #38bdf8; font-size: 12px;">${districtName}</strong>
-                        <div style="color: #94a3b8; font-size: 10px; margin-top: 2px;">
+                      <div style="font-family: monospace; font-size: 11px; color: #fdf5f2; line-height: 1.3;">
+                        <strong style="color: #DBAFA0; font-size: 12px;">${districtName}</strong>
+                        <div style="color: #c2a3b0; font-size: 10px; margin-top: 2px;">
                           ${isDistSelected ? "Currently active district" : "Click to select & highlight claims"}
                         </div>
                       </div>`;
@@ -497,9 +497,9 @@ export default function StateGISMap({
                     mapInstance._districtTooltip.close();
                   }
                   l.setStyle({
-                    fillColor: "#0891b2",
-                    fillOpacity: isDistSelected ? 0.25 : 0.05,
-                    color: isDistSelected ? "#38bdf8" : "rgba(56, 189, 248, 0.4)",
+                    fillColor: "#704264",
+                    fillOpacity: isDistSelected ? 0.32 : 0.08,
+                    color: isDistSelected ? "#DBAFA0" : "rgba(187, 132, 147, 0.4)",
                     weight: isDistSelected ? 2.5 : 1.0,
                     opacity: 0.95,
                   });
@@ -578,8 +578,8 @@ export default function StateGISMap({
               >
                 <Popup>
                   <div className="font-mono text-xs p-1 space-y-1 text-slate-200 min-w-[170px]">
-                    <div className="flex items-center justify-between border-b border-slate-700 pb-1">
-                      <strong className="text-cyan-400">{claim.claimId}</strong>
+                    <div className="flex items-center justify-between border-b border-[#49243E] pb-1">
+                      <strong className="text-[#DBAFA0]">{claim.claimId}</strong>
                       <span
                         style={{
                           backgroundColor:
@@ -611,7 +611,7 @@ export default function StateGISMap({
                       <div>District: <span className="font-semibold text-white">{claim.district}</span></div>
                       <div>Claimed: <span className="font-semibold text-white">{formatArea(claim.claimedArea)}</span></div>
                       <div>Mismatch: <span className="font-semibold text-amber-300">{claim.areaMismatch}%</span></div>
-                      <div>ML Score: <span className="font-semibold text-cyan-300">{claim.mlScore} / 100</span></div>
+                      <div>ML Score: <span className="font-semibold text-[#BB8493]">{claim.mlScore} / 100</span></div>
                     </div>
                   </div>
                 </Popup>
@@ -622,11 +622,11 @@ export default function StateGISMap({
       </MapContainer>
 
       {/* State & District Header Badge */}
-      <div className="absolute top-3 left-3 z-[1000] bg-slate-950/85 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-slate-800 text-[11px] font-mono text-slate-200 flex items-center gap-2 shadow-lg">
-        <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+      <div className="absolute top-3 left-3 z-[1000] bg-[#180b15]/85 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-[#49243E]/80 text-[11px] font-mono text-slate-200 flex items-center gap-2 shadow-lg">
+        <span className="w-2 h-2 rounded-full bg-[#DBAFA0] animate-pulse" />
         <span className="font-semibold text-white">{state.name}</span>
-        <span className="text-slate-500">/</span>
-        <span className="text-cyan-300">
+        <span className="text-[#c2a3b0]">/</span>
+        <span className="text-[#DBAFA0]">
           {selectedDistrict
             ? `${selectedDistrict} (${selectedDistrictClaimsCount} claims · ${visibleClaims.length} state total)`
             : `All Districts (${visibleClaims.length} claims)`}
@@ -634,8 +634,8 @@ export default function StateGISMap({
       </div>
 
       {/* ML Risk Legend */}
-      <div className="absolute bottom-3 left-3 z-[1000] bg-slate-950/85 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-slate-800 text-[11px] font-mono text-slate-300 flex items-center gap-3 shadow-lg">
-        <span className="text-slate-400 font-semibold mr-0.5">ML Risk:</span>
+      <div className="absolute bottom-3 left-3 z-[1000] bg-[#180b15]/85 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-[#49243E]/80 text-[11px] font-mono text-[#c2a3b0] flex items-center gap-3 shadow-lg">
+        <span className="text-[#c2a3b0] font-semibold mr-0.5">ML Risk:</span>
         <span className="flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shadow-[0_0_6px_#f43f5e]"></span> HIGH
         </span>

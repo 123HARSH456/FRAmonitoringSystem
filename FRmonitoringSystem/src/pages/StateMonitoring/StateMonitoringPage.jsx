@@ -126,7 +126,7 @@ export default function StateMonitoringPage() {
         <div className="flex items-center gap-3">
           <Link
             to="/"
-            className="p-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white transition-colors"
+            className="p-1 rounded-lg bg-[#241120] hover:bg-[#35182e] border border-[#704264]/60 text-[#c2a3b0] hover:text-[#DBAFA0] transition-colors"
             title="Back to India Map"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
@@ -135,7 +135,7 @@ export default function StateMonitoringPage() {
             <h2 className="text-sm sm:text-base font-bold text-white tracking-tight flex items-center gap-2">
               <span>{state.name} FRA Monitoring</span>
               {activeDistrict && (
-                <span className="text-xs text-cyan-400 font-mono font-normal">
+                <span className="text-xs text-[#DBAFA0] font-mono font-normal">
                   / {activeDistrict} ({districtClaims.length} claims)
                 </span>
               )}
@@ -169,9 +169,9 @@ export default function StateMonitoringPage() {
         {/* Contextual Information Panel (40% width on desktop) */}
         <div className="w-full lg:w-[40%] flex flex-col gap-3 lg:overflow-y-auto pr-0 lg:pr-1 pb-4 lg:pb-0">
           {/* State & Selected Claim Summary Card */}
-          <div className="glass-panel rounded-xl p-4 border border-slate-800 space-y-3.5 font-mono text-xs">
+          <div className="glass-panel rounded-xl p-4 border border-[#49243E]/80 space-y-3.5 font-mono text-xs">
             <div>
-              <div className="text-[10px] uppercase text-cyan-400 font-semibold tracking-wider">
+              <div className="text-[10px] uppercase text-[#DBAFA0] font-semibold tracking-wider">
                 State Overview
               </div>
               <h3 className="text-base font-bold text-white mt-0.5">
@@ -180,28 +180,28 @@ export default function StateMonitoringPage() {
             </div>
 
             {/* Key State Metrics - Verified Live Data */}
-            <div className="space-y-2 border-t border-slate-800 pt-2.5">
+            <div className="space-y-2 border-t border-[#49243E]/60 pt-2.5">
               <div className="flex justify-between">
-                <span className="text-slate-400">Total claims:</span>
+                <span className="text-[#c2a3b0]">Total claims:</span>
                 <span className="font-bold text-white">
                   {formatNumber(stateMetrics.totalClaims)}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Title Granted / Approved:</span>
+                <span className="text-[#c2a3b0]">Title Granted / Approved:</span>
                 <span className="font-bold text-emerald-400">
                   {formatNumber(stateMetrics.approvedClaims)}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Pending Verification:</span>
-                <span className="font-bold text-blue-400">
+                <span className="text-[#c2a3b0]">Pending Verification:</span>
+                <span className="font-bold text-[#BB8493]">
                   {formatNumber(stateMetrics.pendingClaims)}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Anomalies:</span>
-                <span className="font-bold text-amber-400">
+                <span className="text-[#c2a3b0]">Anomalies:</span>
+                <span className="font-bold text-[#DBAFA0]">
                   {formatNumber(stateMetrics.anomalies)}
                 </span>
               </div>
@@ -220,9 +220,9 @@ export default function StateMonitoringPage() {
 
             {/* Compact Claim Details Panel (Contains all 10 required fields) */}
             {activeClaim ? (
-              <div className="border-t border-slate-800 pt-3 space-y-3">
+              <div className="border-t border-[#49243E]/80 pt-3 space-y-3">
                 <div className="flex items-center justify-between">
-                  <div className="text-[10px] uppercase text-cyan-400 font-semibold tracking-wider">
+                  <div className="text-[10px] uppercase text-[#DBAFA0] font-semibold tracking-wider">
                     Claim Details
                   </div>
                   <span
@@ -240,28 +240,28 @@ export default function StateMonitoringPage() {
 
                 {/* 10 Required Items Table */}
                 <div className="space-y-1.5 text-xs">
-                  <div className="flex justify-between py-1 border-b border-slate-800/80">
-                    <span className="text-slate-400">Claim ID:</span>
+                  <div className="flex justify-between py-1 border-b border-[#49243E]/60">
+                    <span className="text-[#c2a3b0]">Claim ID:</span>
                     <span className="font-bold text-white">{activeClaim.claimId}</span>
                   </div>
-                  <div className="flex justify-between py-1 border-b border-slate-800/80">
-                    <span className="text-slate-400">State:</span>
+                  <div className="flex justify-between py-1 border-b border-[#49243E]/60">
+                    <span className="text-[#c2a3b0]">State:</span>
                     <span className="font-semibold text-slate-200">{activeClaim.state}</span>
                   </div>
-                  <div className="flex justify-between py-1 border-b border-slate-800/80">
-                    <span className="text-slate-400">District:</span>
-                    <span className="font-semibold text-cyan-300">{activeClaim.district}</span>
+                  <div className="flex justify-between py-1 border-b border-[#49243E]/60">
+                    <span className="text-[#c2a3b0]">District:</span>
+                    <span className="font-semibold text-[#DBAFA0]">{activeClaim.district}</span>
                   </div>
-                  <div className="flex justify-between py-1 border-b border-slate-800/80">
-                    <span className="text-slate-400">Claimed Area:</span>
+                  <div className="flex justify-between py-1 border-b border-[#49243E]/60">
+                    <span className="text-[#c2a3b0]">Claimed Area:</span>
                     <span className="font-semibold text-white">{formatArea(activeClaim.claimedArea)}</span>
                   </div>
-                  <div className="flex justify-between py-1 border-b border-slate-800/80">
-                    <span className="text-slate-400">Recorded Area:</span>
+                  <div className="flex justify-between py-1 border-b border-[#49243E]/60">
+                    <span className="text-[#c2a3b0]">Recorded Area:</span>
                     <span className="font-semibold text-white">{formatArea(activeClaim.recordedArea)}</span>
                   </div>
-                  <div className="flex justify-between py-1 border-b border-slate-800/80">
-                    <span className="text-slate-400">Area Mismatch:</span>
+                  <div className="flex justify-between py-1 border-b border-[#49243E]/60">
+                    <span className="text-[#c2a3b0]">Area Mismatch:</span>
                     <span
                       className={`font-semibold ${
                         activeClaim.areaMismatch > 20 ? "text-rose-400 font-bold" : "text-slate-200"
@@ -270,8 +270,8 @@ export default function StateMonitoringPage() {
                       {activeClaim.areaMismatch.toFixed(1)}%
                     </span>
                   </div>
-                  <div className="flex justify-between py-1 border-b border-slate-800/80">
-                    <span className="text-slate-400">Processing Days:</span>
+                  <div className="flex justify-between py-1 border-b border-[#49243E]/60">
+                    <span className="text-[#c2a3b0]">Processing Days:</span>
                     <span
                       className={`font-semibold ${
                         activeClaim.processingDays > 200 ? "text-amber-400" : "text-slate-200"
@@ -280,8 +280,8 @@ export default function StateMonitoringPage() {
                       {activeClaim.processingDays} days
                     </span>
                   </div>
-                  <div className="flex justify-between py-1 border-b border-slate-800/80">
-                    <span className="text-slate-400">Land-Cover Change:</span>
+                  <div className="flex justify-between py-1 border-b border-[#49243E]/60">
+                    <span className="text-[#c2a3b0]">Land-Cover Change:</span>
                     <span
                       className={`font-semibold ${
                         activeClaim.landCoverChange < -15 ? "text-rose-400" : "text-emerald-400"
@@ -291,14 +291,14 @@ export default function StateMonitoringPage() {
                       {activeClaim.landCoverChange.toFixed(1)}%
                     </span>
                   </div>
-                  <div className="flex justify-between py-1 border-b border-slate-800/80">
-                    <span className="text-slate-400">ML Anomaly Score:</span>
-                    <span className="font-bold text-cyan-400">
+                  <div className="flex justify-between py-1 border-b border-[#49243E]/60">
+                    <span className="text-[#c2a3b0]">ML Anomaly Score:</span>
+                    <span className="font-bold text-[#DBAFA0]">
                       {activeClaim.mlScore.toFixed(1)} / 100
                     </span>
                   </div>
                   <div className="flex justify-between py-1">
-                    <span className="text-slate-400">Risk Level:</span>
+                    <span className="text-[#c2a3b0]">Risk Level:</span>
                     <span
                       className={`font-bold ${
                         activeClaim.riskLevel === "HIGH"
@@ -326,13 +326,13 @@ export default function StateMonitoringPage() {
           </div>
 
           {/* District Selector & Parcel List */}
-          <div className="glass-panel rounded-xl p-3.5 border border-slate-800 font-mono text-xs space-y-2.5 flex-1 min-h-[220px]">
-            <div className="flex items-center justify-between gap-2 border-b border-slate-800/80 pb-2">
+          <div className="glass-panel rounded-xl p-3.5 border border-[#49243E]/80 font-mono text-xs space-y-2.5 flex-1 min-h-[220px]">
+            <div className="flex items-center justify-between gap-2 border-b border-[#49243E]/70 pb-2">
               <div>
                 <span className="text-[11px] font-bold text-slate-200 uppercase tracking-wider">
                   District Selection
                 </span>
-                <div className="text-[10px] text-slate-400">
+                <div className="text-[10px] text-[#c2a3b0]">
                   {districtsWithClaims.length} districts with synthetic claims
                 </div>
               </div>
@@ -345,7 +345,7 @@ export default function StateMonitoringPage() {
                       setSelectedDistrict(e.target.value);
                       setSelectedClaim(null);
                     }}
-                    className="bg-slate-900 border border-slate-700 text-cyan-400 font-semibold text-xs rounded px-2.5 py-1 focus:outline-none focus:border-cyan-500 cursor-pointer"
+                    className="bg-[#241120] border border-[#49243E] text-[#DBAFA0] font-semibold text-xs rounded px-2.5 py-1 focus:outline-none focus:border-[#BB8493] cursor-pointer"
                   >
                     {allDistrictsForMenu.map((d) => (
                       <option key={d.district} value={d.district}>
@@ -360,7 +360,7 @@ export default function StateMonitoringPage() {
             {/* Claims in currently selected district */}
             {districtClaims.length > 0 ? (
               <div className="space-y-1.5">
-                <div className="flex items-center justify-between text-[10px] text-slate-400 font-semibold">
+                <div className="flex items-center justify-between text-[10px] text-[#c2a3b0] font-semibold">
                   <span>Claims in {activeDistrict} ({districtClaims.length})</span>
                   <span>Click to select</span>
                 </div>
@@ -371,18 +371,18 @@ export default function StateMonitoringPage() {
                       onClick={() => setSelectedClaim(c)}
                       className={`w-full text-left p-2 rounded border transition-all flex items-center justify-between cursor-pointer ${
                         activeClaim?.id === c.id
-                          ? "bg-cyan-950/60 border-cyan-500 text-white shadow-[0_0_8px_rgba(6,182,212,0.25)]"
-                          : "bg-slate-900/40 border-slate-800/80 text-slate-300 hover:border-slate-700 hover:bg-slate-800/50"
+                          ? "bg-[#49243E]/80 border-[#BB8493] text-white shadow-[0_0_8px_rgba(187,132,147,0.25)]"
+                          : "bg-[#241120]/60 border-[#49243E]/60 text-[#c2a3b0] hover:border-[#704264] hover:bg-[#35182e]/60"
                       }`}
                     >
                       <div>
                         <span className="font-semibold">{c.claimId}</span>
-                        <div className="text-[10px] text-slate-400">
+                        <div className="text-[10px] text-[#c2a3b0]">
                           {formatArea(c.claimedArea)} • Mismatch: {c.areaMismatch}%
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-cyan-400">
+                        <span className="text-[10px] text-[#DBAFA0]">
                           Score: {c.mlScore.toFixed(0)}
                         </span>
                         <span

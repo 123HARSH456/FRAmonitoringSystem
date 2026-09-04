@@ -18,21 +18,21 @@ function createTerritoryLabelIcon(name, isSelected) {
         font-size: 10px;
         font-weight: 600;
         letter-spacing: 0.04em;
-        color: ${isSelected ? "#38bdf8" : "#94a3b8"};
-        background: ${isSelected ? "rgba(8, 145, 178, 0.4)" : "rgba(14, 28, 46, 0.85)"};
-        border: 1px solid ${isSelected ? "#38bdf8" : "rgba(56, 189, 248, 0.45)"};
+        color: ${isSelected ? "#DBAFA0" : "#c2a3b0"};
+        background: ${isSelected ? "rgba(112, 66, 100, 0.7)" : "rgba(36, 17, 32, 0.9)"};
+        border: 1px solid ${isSelected ? "#DBAFA0" : "rgba(187, 132, 147, 0.45)"};
         border-radius: 4px;
         padding: 2px 7px;
         white-space: nowrap;
         cursor: pointer;
-        box-shadow: ${isSelected ? "0 0 10px rgba(56, 189, 248, 0.5)" : "0 2px 6px rgba(0,0,0,0.5)"};
+        box-shadow: ${isSelected ? "0 0 10px rgba(219, 175, 160, 0.5)" : "0 2px 6px rgba(0,0,0,0.5)"};
         display: flex;
         align-items: center;
         gap: 5px;
         transition: all 0.2s ease;
       ">
         <span style="width: 6px; height: 6px; border-radius: 50%; background-color: ${
-          isSelected ? "#38bdf8" : "#06b6d4"
+          isSelected ? "#DBAFA0" : "#BB8493"
         }; display: inline-block;"></span>
         <span>${name}</span>
       </div>
@@ -116,9 +116,9 @@ function MapPatternDefs() {
           defs.innerHTML = `
             <pattern id="tactical-mask-grid" width="32" height="32" patternUnits="userSpaceOnUse">
               <rect width="32" height="32" fill="transparent" />
-              <path d="M 32 0 L 0 0 0 32" fill="none" stroke="rgba(56, 189, 248, 0.12)" stroke-width="0.8" />
-              <circle cx="16" cy="16" r="1.2" fill="#38bdf8" opacity="0.35" />
-              <path d="M 0 16 L 3 16 M 29 16 L 32 16 M 16 0 L 16 3 M 16 29 L 16 32" stroke="#38bdf8" stroke-width="0.6" opacity="0.25" />
+              <path d="M 32 0 L 0 0 0 32" fill="none" stroke="rgba(187, 132, 147, 0.15)" stroke-width="0.8" />
+              <circle cx="16" cy="16" r="1.2" fill="#DBAFA0" opacity="0.35" />
+              <path d="M 0 16 L 3 16 M 29 16 L 32 16 M 16 0 L 16 3 M 16 29 L 16 32" stroke="#BB8493" stroke-width="0.6" opacity="0.25" />
             </pattern>
           `;
         }
@@ -290,9 +290,9 @@ export default function IndiaOverviewMap() {
 
     if (isTransitioning) {
       return {
-        fillColor: isTarget ? "#0891b2" : "#081528",
-        fillOpacity: isTarget ? 0.25 : 0.0,
-        color: isTarget ? "#38bdf8" : "rgba(56, 189, 248, 0.0)",
+        fillColor: isTarget ? "#704264" : "#180b15",
+        fillOpacity: isTarget ? 0.35 : 0.0,
+        color: isTarget ? "#DBAFA0" : "rgba(219, 175, 160, 0.0)",
         weight: isTarget ? 2.5 : 0.5,
         opacity: isTarget ? 0.95 : 0.0,
         className: "leaflet-fade-transition",
@@ -300,9 +300,9 @@ export default function IndiaOverviewMap() {
     }
 
     return {
-      fillColor: isTarget ? "#0891b2" : "#0e1c2e",
-      fillOpacity: isTarget ? 0.3 : 0.02,
-      color: isTarget ? "#38bdf8" : "rgba(56, 189, 248, 0.65)",
+      fillColor: isTarget ? "#704264" : "#241120",
+      fillOpacity: isTarget ? 0.38 : 0.04,
+      color: isTarget ? "#DBAFA0" : "rgba(187, 132, 147, 0.65)",
       weight: isTarget ? 2.4 : 1.2,
       opacity: 0.95,
       className: "leaflet-fade-transition",
@@ -319,15 +319,15 @@ export default function IndiaOverviewMap() {
     // Show state name and overview metrics on hover
     layer.bindTooltip(
       `
-      <div style="font-family: monospace; font-size: 12px; color: #f8fafc; line-height: 1.35;">
-        <strong style="color: #38bdf8; font-size: 13px;">${stateDisplayName}</strong>
-        <div style="color: #94a3b8; font-size: 11px; margin-top: 2px;">
-          Total Claims: <span style="color: #f8fafc; font-weight: 600;">${totalClaimsFormatted}</span>
+      <div style="font-family: monospace; font-size: 12px; color: #fdf5f2; line-height: 1.35;">
+        <strong style="color: #DBAFA0; font-size: 13px;">${stateDisplayName}</strong>
+        <div style="color: #c2a3b0; font-size: 11px; margin-top: 2px;">
+          Total Claims: <span style="color: #fdf5f2; font-weight: 600;">${totalClaimsFormatted}</span>
         </div>
-        <div style="color: #94a3b8; font-size: 11px;">
-          Anomalies: <span style="color: #f59e0b; font-weight: 600;">${anomaliesFormatted}</span>
+        <div style="color: #c2a3b0; font-size: 11px;">
+          Anomalies: <span style="color: #BB8493; font-weight: 600;">${anomaliesFormatted}</span>
         </div>
-        <div style="color: #06b6d4; font-size: 10px; margin-top: 4px; font-weight: 600;">Click to view state monitoring &rarr;</div>
+        <div style="color: #DBAFA0; font-size: 10px; margin-top: 4px; font-weight: 600;">Click to view state monitoring &rarr;</div>
       </div>
     `,
       { sticky: true, className: "custom-leaflet-tooltip" }
@@ -339,9 +339,9 @@ export default function IndiaOverviewMap() {
         const l = e.target;
         l.setStyle({
           weight: 2.5,
-          color: "#38bdf8",
-          fillColor: "#06b6d4",
-          fillOpacity: 0.35,
+          color: "#DBAFA0",
+          fillColor: "#704264",
+          fillOpacity: 0.42,
         });
         l.bringToFront();
         if (stateObj) {
@@ -371,18 +371,18 @@ export default function IndiaOverviewMap() {
   return (
     <div className="flex flex-col lg:flex-row gap-4 items-stretch flex-1 w-full h-full min-h-0">
       {/* Primary Map Canvas - Responsive size on mobile (360-440px), 60% and full-height on desktop */}
-      <div className="w-full lg:w-[60%] h-[360px] sm:h-[440px] lg:h-full min-h-[320px] sm:min-h-[420px] lg:min-h-0 relative rounded-xl overflow-hidden border border-slate-800 bg-[#050912] shadow-2xl flex-shrink-0">
+      <div className="w-full lg:w-[60%] h-[360px] sm:h-[440px] lg:h-full min-h-[320px] sm:min-h-[420px] lg:min-h-0 relative rounded-xl overflow-hidden border border-[#49243E]/80 bg-[#180b15] shadow-2xl flex-shrink-0">
         {/* Subtle grid background only for aesthetics */}
         <div
           className="absolute inset-0 opacity-10 pointer-events-none z-[400]"
           style={{
-            backgroundImage: "radial-gradient(#38bdf8 1px, transparent 1px)",
+            backgroundImage: "radial-gradient(#704264 1px, transparent 1px)",
             backgroundSize: "28px 28px",
           }}
         />
 
         {loading && (
-          <div className="absolute inset-0 z-[2000] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center text-cyan-400 font-mono text-xs">
+          <div className="absolute inset-0 z-[2000] bg-[#180b15]/85 backdrop-blur-sm flex items-center justify-center text-[#DBAFA0] font-mono text-xs">
             <span>Loading India state boundaries...</span>
           </div>
         )}
@@ -390,9 +390,12 @@ export default function IndiaOverviewMap() {
         <MapContainer
           center={[22.5, 82.0]}
           zoom={5}
-          scrollWheelZoom={true}
+          minZoom={4.5}
+          maxZoom={18}
+          maxBoundsViscosity={1.0}
+          scrollWheelZoom={!isTransitioning}
           zoomControl={true}
-          className="w-full h-full z-0 bg-[#060a12]"
+          className="w-full h-full z-0 !bg-[#180b15]"
         >
           {/* Inject high-tech pattern defs for the static mask */}
           <MapPatternDefs />
@@ -427,7 +430,7 @@ export default function IndiaOverviewMap() {
               data={indiaMaskGeoJSON}
               pane="indiaMaskPane"
               style={{
-                fillColor: "#060a12",
+                fillColor: "#180b15",
                 fillOpacity: 1.0,
                 stroke: false,
                 weight: 0,
@@ -490,7 +493,7 @@ export default function IndiaOverviewMap() {
 
         {/* Minimal helper prompt */}
         {!isTransitioning && (
-          <div className="absolute bottom-3 left-3 z-[1000] bg-slate-950/85 backdrop-blur-sm px-3 py-1.5 rounded border border-slate-800 text-[11px] font-mono text-slate-400">
+          <div className="absolute bottom-3 left-3 z-[1000] bg-[#180b15]/85 backdrop-blur-sm px-3 py-1.5 rounded border border-[#49243E]/80 text-[11px] font-mono text-[#c2a3b0]">
             Hover a state to view details • Click to enter state view
           </div>
         )}
@@ -499,10 +502,10 @@ export default function IndiaOverviewMap() {
       {/* Contextual Information Panel - 40% width with scrollable All-India State Jump */}
       <div className="w-full lg:w-[40%] flex flex-col gap-3 lg:overflow-y-auto pr-0 lg:pr-1">
         {/* State Metrics Card */}
-        <div className="glass-panel rounded-xl p-4 border border-slate-800 space-y-3.5 shrink-0">
+        <div className="glass-panel rounded-xl p-4 border border-[#49243E]/80 space-y-3.5 shrink-0">
           <div>
             <div className="flex items-center justify-between">
-              <div className="text-[10px] font-mono uppercase text-cyan-400 font-semibold tracking-wider">
+              <div className="text-[10px] font-mono uppercase text-[#DBAFA0] font-semibold tracking-wider">
                 Selected State
               </div>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-700">
@@ -513,7 +516,7 @@ export default function IndiaOverviewMap() {
               {selectedState.name}
             </h3>
             {selectedState.description && (
-              <p className="text-xs text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+              <p className="text-xs text-[#c2a3b0] mt-1 line-clamp-2 leading-relaxed">
                 {selectedState.description}
               </p>
             )}
@@ -521,85 +524,62 @@ export default function IndiaOverviewMap() {
 
           {/* Valid & Real FRA Claims & Anomaly Metrics */}
           <div className="space-y-2 font-mono text-xs">
-            <div className="flex justify-between py-1 border-b border-slate-800">
-              <span className="text-slate-400">Total Monitored Claims:</span>
+            <div className="flex justify-between py-1 border-b border-[#49243E]/60">
+              <span className="text-[#c2a3b0]">Total Monitored Claims:</span>
               <span className="font-bold text-white text-sm">
                 {formatNumber(selectedStateStats.totalClaims)}
               </span>
             </div>
 
-            <div className="flex justify-between py-1 border-b border-slate-800">
-              <span className="text-slate-400">Title Granted / Approved:</span>
+            <div className="flex justify-between py-1 border-b border-[#49243E]/60">
+              <span className="text-[#c2a3b0]">Title Granted / Approved:</span>
               <span className="font-bold text-emerald-400 text-sm">
                 {formatNumber(selectedStateStats.approvedClaims || 0)}
               </span>
             </div>
 
-            <div className="flex justify-between py-1 border-b border-slate-800">
-              <span className="text-slate-400">Pending Verification:</span>
-              <span className="font-bold text-blue-400 text-sm">
+            <div className="flex justify-between py-1 border-b border-[#49243E]/60">
+              <span className="text-[#c2a3b0]">Pending Verification:</span>
+              <span className="font-bold text-[#BB8493] text-sm">
                 {formatNumber(selectedStateStats.pendingClaims)}
               </span>
             </div>
 
-            <div className="flex justify-between py-1 border-b border-slate-800">
-              <span className="text-slate-400">ML Detected Anomalies:</span>
-              <span className="font-bold text-amber-400 text-sm">
+            <div className="flex justify-between py-1 border-b border-[#49243E]/60">
+              <span className="text-[#c2a3b0]">ML Detected Anomalies:</span>
+              <span className="font-bold text-[#DBAFA0] text-sm">
                 {formatNumber(selectedStateStats.anomalies)}
               </span>
             </div>
 
-            {selectedStateStats.criticalAnomalies > 0 ? (
-              <div className="flex justify-between py-1 border-b border-slate-800">
+            {selectedStateStats.criticalAnomalies > 0 && (
+              <div className="flex justify-between py-1 border-b border-[#49243E]/60">
                 <span className="text-rose-400 flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping inline-block" />
-                  Critical Alerts (High Risk):
+                  Critical Anomalies:
                 </span>
                 <span className="font-bold text-rose-400 text-sm">
                   {selectedStateStats.criticalAnomalies}
                 </span>
               </div>
-            ) : (
-              <div className="flex justify-between py-1 border-b border-slate-800">
-                <span className="text-emerald-400">Critical Alerts:</span>
-                <span className="font-semibold text-emerald-400 text-sm">
-                  0 (Compliant)
-                </span>
-              </div>
             )}
-
-            {/* FSI Forest Cover & Census Tribal Demographic Context */}
-            <div className="grid grid-cols-2 gap-2 pt-1">
-              <div className="p-2 rounded bg-slate-900/80 border border-slate-800">
-                <div className="text-[10px] text-slate-500">Forest Cover (FSI)</div>
-                <div className="font-semibold text-slate-200 mt-0.5">
-                  {selectedState.stats.forestCoverKm2 ? `${formatNumber(selectedState.stats.forestCoverKm2)} km²` : "N/A"}
-                </div>
-              </div>
-              <div className="p-2 rounded bg-slate-900/80 border border-slate-800">
-                <div className="text-[10px] text-slate-500">Tribal Population</div>
-                <div className="font-semibold text-slate-200 mt-0.5">
-                  {selectedState.stats.tribalPopulationPercent !== undefined ? `${selectedState.stats.tribalPopulationPercent}%` : "N/A"}
-                </div>
-              </div>
-            </div>
           </div>
 
-          {/* Dynamic AI / Spatial Assessment */}
-          <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 text-xs text-slate-300 leading-relaxed">
+          {/* Short status / alert */}
+          <div className="p-2.5 rounded-lg bg-[#241120] border border-[#49243E]/80 text-xs text-[#c2a3b0] leading-relaxed">
             {selectedStateStats.criticalAnomalies > 0
-              ? `${selectedStateStats.criticalAnomalies} high-risk claims flagged by ML for field boundary verification. ${selectedStateStats.pendingClaims} pending review across ${selectedStateStats.districtsCount || 0} districts.`
-              : `All spatial bounds verified. ${selectedStateStats.approvedClaims || 0} titles granted with zero high-risk anomalies.`}
+              ? `${selectedStateStats.criticalAnomalies} critical land-cover anomalies flagged in ${selectedState.name}. Priority ground verification suggested.`
+              : `All ${selectedStateStats.totalClaims} claims in ${selectedState.name} conform with baseline boundaries.`}
           </div>
 
           {/* Action button */}
           <button
             onClick={() => handleStateClick(selectedState.id)}
             disabled={isTransitioning}
-            className={`w-full py-2.5 px-3 rounded-lg font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-[0_0_15px_rgba(6,182,212,0.3)] ${
+            className={`w-full py-2.5 px-3 rounded-lg font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-[0_0_15px_rgba(112,66,100,0.4)] ${
               isTransitioning
-                ? "bg-cyan-600/70 text-white cursor-wait"
-                : "bg-cyan-500 hover:bg-cyan-400 text-slate-950"
+                ? "bg-[#704264]/70 text-white cursor-wait"
+                : "bg-[#704264] hover:bg-[#864e77] text-white border border-[#BB8493]/30"
             }`}
           >
             <span>
@@ -612,26 +592,26 @@ export default function IndiaOverviewMap() {
         </div>
 
         {/* Quick State Jump: All 36 States of India in a Scrollable Way */}
-        <div className="glass-panel rounded-xl p-3.5 border border-slate-800 font-mono text-xs flex flex-col flex-1 min-h-[220px]">
-          <div className="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-slate-800/80">
+        <div className="glass-panel rounded-xl p-3.5 border border-[#49243E]/80 font-mono text-xs flex flex-col flex-1 min-h-[220px]">
+          <div className="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-[#49243E]/70">
             <div className="flex items-center gap-1.5">
               <span className="text-[11px] font-bold text-slate-200 uppercase tracking-wider">
                 Quick State Jump
               </span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-cyan-400 font-semibold">
+              <span className="text-[10px] px-1.5 py-0.2 rounded bg-[#49243E]/80 text-[#DBAFA0] font-semibold">
                 {STATES_DATA.length} States &amp; UTs
               </span>
             </div>
 
             {/* Quick Filter Search */}
             <div className="relative w-36">
-              <Search className="w-3 h-3 text-slate-500 absolute left-2 top-2 pointer-events-none" />
+              <Search className="w-3 h-3 text-[#c2a3b0]/60 absolute left-2 top-2 pointer-events-none" />
               <input
                 type="text"
                 value={searchFilter}
                 onChange={(e) => setSearchFilter(e.target.value)}
                 placeholder="Search..."
-                className="w-full pl-6 pr-2 py-1 text-[11px] bg-slate-900 border border-slate-700 rounded text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                className="w-full pl-6 pr-2 py-1 text-[11px] bg-[#241120] border border-[#49243E] rounded text-slate-100 placeholder-[#c2a3b0]/60 focus:outline-none focus:border-[#BB8493]"
               />
             </div>
           </div>
@@ -648,15 +628,15 @@ export default function IndiaOverviewMap() {
                   onDoubleClick={() => handleStateClick(s.id)}
                   className={`w-full text-left px-2.5 py-1.5 rounded-lg border transition-all flex items-center justify-between text-xs cursor-pointer ${
                     isSelected
-                      ? "bg-cyan-950/60 border-cyan-500 text-white shadow-[0_0_10px_rgba(6,182,212,0.25)]"
-                      : "bg-slate-900/40 border-slate-800/80 text-slate-300 hover:bg-slate-800/60 hover:border-slate-700"
+                      ? "bg-[#49243E]/80 border-[#BB8493] text-white shadow-[0_0_10px_rgba(187,132,147,0.25)]"
+                      : "bg-[#241120]/60 border-[#49243E]/60 text-[#c2a3b0] hover:bg-[#35182e] hover:border-[#704264]"
                   }`}
                   title="Click to select on map • Double-click to view state"
                 >
                   <div className="flex items-center gap-2">
                     <span
                       className={`w-1.5 h-1.5 rounded-full ${
-                        isSelected ? "bg-cyan-400" : "bg-slate-600"
+                        isSelected ? "bg-[#DBAFA0]" : "bg-[#704264]"
                       }`}
                     />
                     <span className="font-medium text-[11px] truncate max-w-[170px]">
@@ -665,13 +645,13 @@ export default function IndiaOverviewMap() {
                   </div>
 
                   <div className="flex items-center gap-2 font-mono text-[10px]">
-                    <span className="text-slate-500">{s.code}</span>
+                    <span className="text-[#c2a3b0]/70">{s.code}</span>
                     {sStats.criticalAnomalies > 0 && (
                       <span className="px-1 py-0.2 rounded bg-rose-950/80 text-rose-400 border border-rose-800/60 font-semibold text-[9px]">
                         {sStats.criticalAnomalies} alert{sStats.criticalAnomalies > 1 ? "s" : ""}
                       </span>
                     )}
-                    <span className="text-slate-300 font-semibold">
+                    <span className="text-slate-200 font-semibold">
                       {sStats.totalClaims} {sStats.totalClaims === 1 ? "claim" : "claims"}
                     </span>
                   </div>
@@ -680,7 +660,7 @@ export default function IndiaOverviewMap() {
             })}
 
             {filteredStates.length === 0 && (
-              <div className="text-center py-4 text-slate-500 text-xs">
+              <div className="text-center py-4 text-[#c2a3b0] text-xs">
                 No matching states found.
               </div>
             )}

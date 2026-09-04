@@ -10,29 +10,24 @@ The visual identity should feel like a **high-end editorial intelligence platfor
 
 ---
 
-## Colors
+## Colors (CANOPY Palette)
 
-- **Primary**: `#134E4A` — Headlines, primary actions, selected states
-- **Secondary**: `#E11D48` — Alerts, highlights, map accents, important findings
-- **Tertiary**: `#FDF2E9` — Background, warm surfaces
-- **Surface Base**: `#FDF2E9` — Main page background
-- **Surface White**: `#FFFFFF` — Cards, panels, inputs
-- **Success**: `#16A34A` — Normal/healthy status
-- **Warning**: `#D97706` — Warnings, review-needed conditions
-- **Error**: `#DC2626` — Critical alerts, errors
-- **Info**: `#2563EB` — Updates, supporting information
+- **Plum / Aubergine (`#49243E`)**: Deep wine backdrop, primary structural frames, dark glassmorphic cards
+- **Mulberry / Purple (`#704264`)**: Primary actions, selected states, district fill highlights, interactive buttons
+- **Dusty Rose / Mauve (`#BB8493`)**: Secondary accents, subtle borders, metric trends, map vector outlines
+- **Blush Peach / Sand (`#DBAFA0`)**: Key highlights, active badges, status indicators, illuminated text accents
+- **Deep Base (`#180b15`)**: Core night canvas background
+- **Surface Base (`#241120`)**: Elevated command panels and card surfaces
+- **Text Main (`#FDF5F2`)**: High-contrast crisp typography
+- **Text Muted (`#C2A3B0`)**: Secondary metadata, captions, and labels
 
 ### Geographic Colors
 
-Use the existing palette for geographic visualization.
-
-- Default state: `#E7E5E4`
-- Hovered state: `#D6D3D1`
-- Selected state: `#134E4A`
-- Important/alert region: `#E11D48`
-- Map background/surface: `#FDF2E9`
-
-Do not introduce unnecessary colors. Geographic visualization should remain consistent with the main design system.
+- Default state / district: `#241120`, stroke `rgba(187, 132, 147, 0.45)`
+- Hovered state / district: `#704264` / `#BB8493`, stroke `#DBAFA0`
+- Selected state / district: `#49243E` / `#704264`, stroke `#DBAFA0`
+- Claim marker selected halo: `#DBAFA0`
+- Map canvas & exterior mask: `#180b15`
 
 ---
 
