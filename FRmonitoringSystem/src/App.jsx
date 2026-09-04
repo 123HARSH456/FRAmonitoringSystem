@@ -6,7 +6,7 @@ import StateMonitoringPage from "./pages/StateMonitoring/StateMonitoringPage";
 export default function App() {
   return (
     <BrowserRouter>
-      <div className="min-h-screen lg:h-screen bg-[#080c14] text-slate-100 flex flex-col selection:bg-cyan-500 selection:text-slate-950 overflow-y-auto lg:overflow-hidden">
+      <div className="min-h-screen lg:h-screen bg-[#180b15] text-[#fdf5f2] flex flex-col selection:bg-[#704264] selection:text-white overflow-y-auto lg:overflow-hidden">
         {/* Simple Header */}
         <Header />
 

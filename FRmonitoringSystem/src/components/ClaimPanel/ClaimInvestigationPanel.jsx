@@ -53,25 +53,25 @@ export default function ClaimInvestigationPanel({ claim, onClose }) {
 
       {/* Cadastral & Temporal Metrics (DESIGN.md lines 156-164) */}
       <div className="grid grid-cols-2 gap-2.5">
-        <div className="bg-slate-900/90 p-2.5 rounded-lg border border-slate-800">
-          <span className="text-[10px] text-slate-400 uppercase">District / Sector</span>
+        <div className="bg-[#241120]/90 p-2.5 rounded-lg border border-[#49243E]/80">
+          <span className="text-[10px] text-[#c2a3b0] uppercase">District / Sector</span>
           <div className="text-slate-200 font-semibold text-xs mt-0.5 flex items-center gap-1">
-            <MapPin className="w-3 h-3 text-cyan-400 shrink-0" />
+            <MapPin className="w-3 h-3 text-[#DBAFA0] shrink-0" />
             <span className="truncate">{claim.district}</span>
           </div>
-          <span className="text-[10px] text-slate-500 truncate block mt-0.5">{claim.village}</span>
+          <span className="text-[10px] text-[#c2a3b0]/70 truncate block mt-0.5">{claim.village}</span>
         </div>
 
-        <div className="bg-slate-900/90 p-2.5 rounded-lg border border-slate-800">
-          <span className="text-[10px] text-slate-400 uppercase">Tenure Category</span>
-          <div className="text-cyan-400 font-semibold text-xs mt-0.5 truncate">
+        <div className="bg-[#241120]/90 p-2.5 rounded-lg border border-[#49243E]/80">
+          <span className="text-[10px] text-[#c2a3b0] uppercase">Tenure Category</span>
+          <div className="text-[#DBAFA0] font-semibold text-xs mt-0.5 truncate">
             {claim.claimType}
           </div>
-          <span className="text-[10px] text-slate-500 block mt-0.5">Under FRA 2006</span>
+          <span className="text-[10px] text-[#c2a3b0]/70 block mt-0.5">Under FRA 2006</span>
         </div>
 
-        <div className="bg-slate-900/90 p-2.5 rounded-lg border border-slate-800">
-          <span className="text-[10px] text-slate-400 uppercase">Area Comparison</span>
+        <div className="bg-[#241120]/90 p-2.5 rounded-lg border border-[#49243E]/80">
+          <span className="text-[10px] text-[#c2a3b0] uppercase">Area Comparison</span>
           <div className="flex items-baseline gap-1.5 mt-0.5">
             <span className="text-white font-bold text-sm">
               {formatArea(claim.claimedAreaHa)}
@@ -138,10 +138,10 @@ export default function ClaimInvestigationPanel({ claim, onClose }) {
 
       {/* Historical LULC Visualization (DESIGN.md lines 305-320) */}
       {claim.historicalLulc && (
-        <div className="p-3 bg-slate-900/90 rounded-lg border border-slate-800 space-y-2">
+        <div className="p-3 bg-[#241120]/90 rounded-lg border border-[#49243E]/80 space-y-2">
           <div className="flex items-center justify-between text-[11px] font-bold text-slate-300 uppercase">
             <span className="flex items-center gap-1.5">
-              <BarChart3 className="w-3.5 h-3.5 text-cyan-400" />
+              <BarChart3 className="w-3.5 h-3.5 text-[#DBAFA0]" />
               <span>HISTORICAL LAND COVER (BHUVAN AOI)</span>
             </span>
             <span className="text-[10px] text-slate-500">2010–2024</span>
@@ -180,22 +180,22 @@ export default function ClaimInvestigationPanel({ claim, onClose }) {
       )}
 
       {/* AI Assessment (DESIGN.md lines 175-180 & 191-204) */}
-      <div className="p-3 rounded-lg bg-cyan-950/40 border border-cyan-500/40 space-y-1.5">
-        <div className="flex items-center gap-1.5 text-cyan-400 text-[11px] font-bold uppercase tracking-wider">
+      <div className="p-3 rounded-lg bg-[#49243E]/40 border border-[#BB8493]/40 space-y-1.5">
+        <div className="flex items-center gap-1.5 text-[#DBAFA0] text-[11px] font-bold uppercase tracking-wider">
           <Sparkles className="w-3.5 h-3.5" />
           <span>AI SPATIAL REASONING ASSESSMENT</span>
         </div>
-        <p className="text-slate-300 text-xs leading-relaxed">
+        <p className="text-slate-200 text-xs leading-relaxed">
           {claim.aiAssessment}
         </p>
       </div>
 
       {/* Recommended Action (DESIGN.md lines 183-190) */}
-      <div className="p-3 rounded-lg bg-slate-900 border border-slate-700/80 space-y-1.5">
-        <div className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+      <div className="p-3 rounded-lg bg-[#241120] border border-[#49243E]/80 space-y-1.5">
+        <div className="text-[11px] font-bold text-slate-200 uppercase tracking-wider">
           RECOMMENDED ACTION
         </div>
-        <p className="text-slate-200 text-xs leading-relaxed">
+        <p className="text-[#c2a3b0] text-xs leading-relaxed">
           {claim.recommendedAction}
         </p>
       </div>
@@ -204,14 +204,14 @@ export default function ClaimInvestigationPanel({ claim, onClose }) {
       <div className="pt-2 flex items-center gap-2">
         <button
           onClick={() => alert(`Generating Bhuvan LULC verification report for ${claim.id}...`)}
-          className="flex-1 py-2 px-3 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs transition-all flex items-center justify-center gap-1.5 shadow-[0_0_12px_rgba(6,182,212,0.3)] cursor-pointer"
+          className="flex-1 py-2 px-3 rounded-lg bg-[#704264] hover:bg-[#864e77] text-white font-bold text-xs transition-all flex items-center justify-center gap-1.5 shadow-[0_0_12px_rgba(112,66,100,0.4)] border border-[#BB8493]/30 cursor-pointer"
         >
           <span>View LULC Report</span>
           <ArrowUpRight className="w-3.5 h-3.5" />
         </button>
         <button
           onClick={() => alert(`Opening cadastral title dossier for ${claim.id}...`)}
-          className="py-2 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs border border-slate-700 transition-colors cursor-pointer"
+          className="py-2 px-3 rounded-lg bg-[#241120] hover:bg-[#35182e] text-[#DBAFA0] text-xs border border-[#49243E] transition-colors cursor-pointer"
         >
           View Title Dossier
         </button>

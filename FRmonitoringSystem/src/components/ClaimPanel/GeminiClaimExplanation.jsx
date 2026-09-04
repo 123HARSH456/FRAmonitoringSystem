@@ -75,35 +75,35 @@ export default function GeminiClaimExplanation({ claim }) {
   const isMedium = claim.riskLevel === "MEDIUM";
 
   return (
-    <div className="border-t border-slate-800/90 pt-3 space-y-2.5 font-mono">
+    <div className="border-t border-[#49243E]/80 pt-3 space-y-2.5 font-mono">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1.5 text-cyan-400 text-[11px] font-bold uppercase tracking-wider">
-          <Sparkles className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+        <div className="flex items-center gap-1.5 text-[#DBAFA0] text-[11px] font-bold uppercase tracking-wider">
+          <Sparkles className="w-3.5 h-3.5 text-[#DBAFA0] animate-pulse" />
           <span>Gemini AI Evidence Explanation</span>
         </div>
 
         <button
           onClick={handleRegenerate}
           disabled={loading}
-          className="text-slate-400 hover:text-cyan-300 transition-colors p-1 rounded hover:bg-slate-800/80 disabled:opacity-40 cursor-pointer"
+          className="text-[#c2a3b0] hover:text-[#DBAFA0] transition-colors p-1 rounded hover:bg-[#35182e] disabled:opacity-40 cursor-pointer"
           title="Regenerate explanation"
         >
-          <RefreshCw className={`w-3 h-3 ${loading ? "animate-spin text-cyan-400" : ""}`} />
+          <RefreshCw className={`w-3 h-3 ${loading ? "animate-spin text-[#DBAFA0]" : ""}`} />
         </button>
       </div>
 
       {/* Loading State */}
       {loading && (
-        <div className="p-3 rounded bg-slate-900/90 border border-slate-800 space-y-2">
-          <div className="flex items-center gap-2 text-cyan-400 text-xs">
-            <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
+        <div className="p-3 rounded bg-[#241120]/90 border border-[#49243E] space-y-2">
+          <div className="flex items-center gap-2 text-[#DBAFA0] text-xs">
+            <span className="w-2 h-2 rounded-full bg-[#DBAFA0] animate-ping" />
             <span>Analyzing structured evidence with Gemini AI...</span>
           </div>
           <div className="space-y-1.5 pt-1 opacity-60">
-            <div className="h-2.5 bg-slate-800 rounded animate-pulse w-full" />
-            <div className="h-2.5 bg-slate-800 rounded animate-pulse w-5/6" />
-            <div className="h-2.5 bg-slate-800 rounded animate-pulse w-3/4" />
+            <div className="h-2.5 bg-[#49243E]/60 rounded animate-pulse w-full" />
+            <div className="h-2.5 bg-[#49243E]/60 rounded animate-pulse w-5/6" />
+            <div className="h-2.5 bg-[#49243E]/60 rounded animate-pulse w-3/4" />
           </div>
         </div>
       )}
@@ -131,7 +131,7 @@ export default function GeminiClaimExplanation({ claim }) {
               ? "bg-rose-950/20 border-rose-800/40 text-slate-200"
               : isMedium
               ? "bg-amber-950/20 border-amber-800/40 text-slate-200"
-              : "bg-cyan-950/20 border-cyan-800/40 text-slate-200"
+              : "bg-[#49243E]/30 border-[#BB8493]/40 text-slate-200"
           }`}
         >
           <div className="flex items-start gap-2">
