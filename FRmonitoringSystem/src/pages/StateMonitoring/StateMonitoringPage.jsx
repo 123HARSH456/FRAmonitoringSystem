@@ -1,220 +1,380 @@
-import { useState, useMemo } from "react";
-import { useParams } from "react-router-dom";
+import { useState, useEffect, useMemo } from "react";
+import { useParams, Link } from "react-router-dom";
 import { getStateById } from "../../data/statesData";
-import { getClaimsByState } from "../../data/mockClaims";
+import {
+  fetchEnrichedClaims,
+  filterClaimsByState,
+  filterClaimsByDistrict,
+  getDistrictsSummary,
+} from "../../services/claimsService";
 import { formatNumber, formatArea } from "../../utils/formatters";
-import Breadcrumbs from "../../components/common/Breadcrumbs";
 import StateGISMap from "../../components/StateMap/StateGISMap";
-import ClaimInvestigationPanel from "../../components/ClaimPanel/ClaimInvestigationPanel";
-import { Filter } from "lucide-react";
+import GeminiClaimExplanation from "../../components/ClaimPanel/GeminiClaimExplanation";
+import { ArrowLeft } from "lucide-react";
 
 export default function StateMonitoringPage() {
   const { stateId } = useParams();
-
   const state = getStateById(stateId || "mp") || getStateById("mp");
-  const allClaims = useMemo(() => getClaimsByState(state.id), [state.id]);
 
-  const [selectedDistrict, setSelectedDistrict] = useState("all");
-  const [selectedSeverity, setSelectedSeverity] = useState("all");
-  const [selectedClaim, setSelectedClaim] = useState(allClaims[0] || null);
+  const [allClaims, setAllClaims] = useState([]);
+  const [selectedDistrict, setSelectedDistrict] = useState(null);
+  const [selectedClaim, setSelectedClaim] = useState(null);
+  const [loadingClaims, setLoadingClaims] = useState(true);
 
-  const filteredClaims = useMemo(() => {
-    return allClaims.filter((claim) => {
-      const matchDistrict = selectedDistrict === "all" || claim.district === selectedDistrict;
-      const matchSeverity = selectedSeverity === "all" || claim.severity === selectedSeverity;
-      return matchDistrict && matchSeverity;
+  // Load enriched claims merged with ML anomaly detection results
+  useEffect(() => {
+    let isMounted = true;
+    fetchEnrichedClaims()
+      .then((claimsList) => {
+        if (isMounted) {
+          setAllClaims(claimsList);
+          setLoadingClaims(false);
+        }
+      })
+      .catch((err) => {
+        console.error("Error loading enriched claims:", err);
+        if (isMounted) setLoadingClaims(false);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Filter claims for this active state
+  const stateClaims = useMemo(() => {
+    return filterClaimsByState(allClaims, state.name || state.id);
+  }, [allClaims, state]);
+
+  // List of districts in this state that have synthetic claims
+  const districtsWithClaims = useMemo(() => {
+    return getDistrictsSummary(allClaims, state.name || state.id);
+  }, [allClaims, state]);
+
+  // Match user-selected district with districts list (case-insensitive & trimmed)
+  const activeDistrict = useMemo(() => {
+    if (!selectedDistrict) {
+      return districtsWithClaims[0]?.district || null;
+    }
+    const cleanSel = selectedDistrict.toLowerCase().trim();
+    const matched = districtsWithClaims.find(
+      (d) => d.district.toLowerCase().trim() === cleanSel
+    );
+    if (matched) return matched.district;
+
+    // Substring or parenthesis fallback (e.g. "Khargone (West Nimar)" vs "Khargone")
+    const cleanNoParen = cleanSel.replace(/\s*\([^)]*\)/g, "").trim();
+    const fallback = districtsWithClaims.find((d) => {
+      const cDist = d.district.toLowerCase().trim();
+      const cDistNoParen = cDist.replace(/\s*\([^)]*\)/g, "").trim();
+      return (
+        cDist === cleanSel ||
+        cDistNoParen === cleanNoParen ||
+        (cleanNoParen.length > 3 && cDist.includes(cleanNoParen)) ||
+        (cDistNoParen.length > 3 && cleanSel.includes(cDistNoParen))
+      );
     });
-  }, [allClaims, selectedDistrict, selectedSeverity]);
+    return fallback ? fallback.district : selectedDistrict;
+  }, [selectedDistrict, districtsWithClaims]);
+
+  // Claims belonging specifically to the active district
+  const districtClaims = useMemo(() => {
+    if (!activeDistrict) return [];
+    return filterClaimsByDistrict(stateClaims, activeDistrict);
+  }, [stateClaims, activeDistrict]);
+
+  // Ensure activeDistrict is always present in dropdown list
+  const allDistrictsForMenu = useMemo(() => {
+    const list = [...districtsWithClaims];
+    if (
+      activeDistrict &&
+      !list.some((d) => d.district.toLowerCase().trim() === activeDistrict.toLowerCase().trim())
+    ) {
+      list.unshift({
+        district: activeDistrict,
+        total: districtClaims.length,
+        high: 0,
+        medium: 0,
+        low: 0,
+      });
+    }
+    return list;
+  }, [districtsWithClaims, activeDistrict, districtClaims.length]);
+
+  // Computed active claim: user-selected if in this district, else first claim in district
+  const activeClaim = useMemo(() => {
+    if (selectedClaim && districtClaims.some((c) => c.id === selectedClaim.id)) {
+      return selectedClaim;
+    }
+    return districtClaims[0] || null;
+  }, [selectedClaim, districtClaims]);
 
   return (
-    <div className="space-y-4 pb-12">
-      {/* Dynamic Breadcrumbs */}
-      <Breadcrumbs
-        state={state}
-        district={selectedDistrict !== "all" ? selectedDistrict : null}
-        claimId={selectedClaim?.id}
-      />
-
-      {/* State Monitoring Header & Telemetry Summary */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 glass-panel rounded-xl p-4 border border-slate-800">
-        <div>
-          <div className="flex items-center gap-2 text-xs font-mono text-cyan-400">
-            <span className="w-2 h-2 rounded-full bg-cyan-400"></span>
-            <span>2D LEAFLET WEBGIS SPATIAL SURVEILLANCE</span>
-          </div>
-          <h2 className="text-xl lg:text-2xl font-black text-white tracking-tight mt-0.5">
-            {state.name.toUpperCase()} FRA CLAIM MONITORING
-          </h2>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Cadastral parcel surveillance integrated with Esri High-Resolution World Imagery & Bhuvan LULC.
-          </p>
-        </div>
-
-        {/* 4 State KPI Counters */}
-        <div className="flex flex-wrap items-center gap-3 font-mono text-xs">
-          <div className="bg-slate-900/90 px-3 py-2 rounded-lg border border-slate-800">
-            <div className="text-slate-400 text-[10px]">TOTAL CLAIMS</div>
-            <div className="text-base font-bold text-white">
-              {formatNumber(state.stats.totalClaims)}
-            </div>
-          </div>
-
-          <div className="bg-slate-900/90 px-3 py-2 rounded-lg border border-slate-800">
-            <div className="text-slate-400 text-[10px]">PENDING</div>
-            <div className="text-base font-bold text-blue-400">
-              {formatNumber(state.stats.pendingClaims)}
-            </div>
-          </div>
-
-          <div className="bg-slate-900/90 px-3 py-2 rounded-lg border border-slate-800">
-            <div className="text-slate-400 text-[10px]">ANOMALIES</div>
-            <div className="text-base font-bold text-amber-400">
-              {formatNumber(state.stats.anomalies)}
-            </div>
-          </div>
-
-          <div className="bg-slate-900/90 px-3 py-2 rounded-lg border border-rose-900/50">
-            <div className="text-rose-400 text-[10px]">CRITICAL</div>
-            <div className="text-base font-bold text-rose-400 flex items-center gap-1.5">
-              <span>{state.stats.criticalAnomalies}</span>
-              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping"></span>
-            </div>
+    <div className="flex-1 flex flex-col lg:h-full min-h-0 space-y-2 lg:overflow-hidden pb-4 lg:pb-0">
+      {/* Simple Page Header */}
+      <div className="flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-3">
+          <Link
+            to="/"
+            className="p-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white transition-colors"
+            title="Back to India Map"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+          </Link>
+          <div>
+            <h2 className="text-sm sm:text-base font-bold text-white tracking-tight flex items-center gap-2">
+              <span>{state.name} FRA Monitoring</span>
+              {activeDistrict && (
+                <span className="text-xs text-cyan-400 font-mono font-normal">
+                  / {activeDistrict} ({districtClaims.length} claims)
+                </span>
+              )}
+            </h2>
           </div>
         </div>
       </div>
 
-      {/* Main Grid: Left WebGIS Map + Right Investigation Panel & Claim List */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 items-start">
-        {/* Left GIS Section (Col 1-7 or 1-8) */}
-        <div className="xl:col-span-7 space-y-3">
-          {/* Filter Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-3 p-2.5 rounded-lg bg-slate-900/70 border border-slate-800 text-xs font-mono">
-            <div className="flex items-center gap-2">
-              <Filter className="w-3.5 h-3.5 text-cyan-400" />
-              <span className="text-slate-400">District:</span>
-              <select
-                value={selectedDistrict}
-                onChange={(e) => setSelectedDistrict(e.target.value)}
-                className="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-200 focus:outline-none focus:border-cyan-500"
-              >
-                <option value="all">All Districts ({state.districts.length})</option>
-                {state.districts.map((d) => (
-                  <option key={d} value={d}>
-                    {d}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className="text-slate-400">Severity:</span>
-              <select
-                value={selectedSeverity}
-                onChange={(e) => setSelectedSeverity(e.target.value)}
-                className="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-200 focus:outline-none focus:border-cyan-500"
-              >
-                <option value="all">All Severities</option>
-                <option value="critical">Critical Only</option>
-                <option value="review">Needs Review</option>
-                <option value="normal">Normal</option>
-              </select>
-            </div>
-
-            <span className="text-slate-500 text-[11px]">
-              Showing {filteredClaims.length} parcels
-            </span>
-          </div>
-
-          {/* Leaflet WebGIS Map */}
+      {/* Main Area: 60% Map + 40% Information Panel (Responsive on mobile) */}
+      <div className="flex flex-col lg:flex-row gap-4 items-stretch flex-1 w-full h-full min-h-0">
+        {/* Large Leaflet Map (Responsive on mobile, 60% on desktop) */}
+        <div className="w-full lg:w-[60%] h-[360px] sm:h-[440px] lg:h-full min-h-[320px] sm:min-h-[420px] lg:min-h-0 flex-shrink-0">
           <StateGISMap
             state={state}
-            claims={filteredClaims}
-            selectedClaim={selectedClaim}
+            selectedDistrict={activeDistrict}
+            onSelectDistrict={(dist) => {
+              setSelectedDistrict(dist);
+              setSelectedClaim(null);
+            }}
+            claims={districtClaims}
+            selectedClaim={activeClaim}
             onSelectClaim={(claim) => setSelectedClaim(claim)}
           />
-
-          {/* Map instructions reminder */}
-          <div className="flex items-center justify-between text-[11px] font-mono text-slate-400 px-2">
-            <span>Click any claim polygon or anomaly marker on the map to inspect AI assessment</span>
-            <span className="text-cyan-400">Esri World Imagery 0.3m Resolution</span>
-          </div>
         </div>
 
-        {/* Right Section: Investigation Panel & Claims Queue (Col 8-12) */}
-        <div className="xl:col-span-5 space-y-4">
-          {/* Active Claim Investigation Panel */}
-          {selectedClaim ? (
-            <ClaimInvestigationPanel
-              claim={selectedClaim}
-              onClose={() => setSelectedClaim(null)}
-            />
-          ) : (
-            <div className="glass-panel rounded-xl p-6 border border-slate-800 text-center font-mono text-xs text-slate-400">
-              <p>Select a claim from the map or directory below to inspect anomaly telemetry.</p>
+        {/* Contextual Information Panel (40% width on desktop) */}
+        <div className="w-full lg:w-[40%] flex flex-col gap-3 lg:overflow-y-auto pr-0 lg:pr-1 pb-4 lg:pb-0">
+          {/* State & Selected Claim Summary Card */}
+          <div className="glass-panel rounded-xl p-4 border border-slate-800 space-y-3.5 font-mono text-xs">
+            <div>
+              <div className="text-[10px] uppercase text-cyan-400 font-semibold tracking-wider">
+                State Overview
+              </div>
+              <h3 className="text-base font-bold text-white mt-0.5">
+                {state.name}
+              </h3>
             </div>
-          )}
 
-          {/* Synthetic Claims Queue / Roster */}
-          <div className="glass-panel rounded-xl p-4 border border-slate-800 space-y-3">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-slate-200 uppercase font-mono">
-                  DEMARCATED CLAIMS QUEUE
-                </span>
-                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700 text-slate-400">
-                  {filteredClaims.length}
+            {/* Key State Metrics */}
+            <div className="space-y-2 border-t border-slate-800 pt-2.5">
+              <div className="flex justify-between">
+                <span className="text-slate-400">Total claims:</span>
+                <span className="font-bold text-white">
+                  {formatNumber(state.stats.totalClaims)}
                 </span>
               </div>
-              <span className="text-[10px] font-mono text-amber-400/90">
-                SYNTHETIC TEST SAMPLES
-              </span>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Pending:</span>
+                <span className="font-bold text-blue-400">
+                  {formatNumber(state.stats.pendingClaims)}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Anomalies:</span>
+                <span className="font-bold text-amber-400">
+                  {formatNumber(state.stats.anomalies)}
+                </span>
+              </div>
             </div>
 
-            <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-              {filteredClaims.map((c) => {
-                const isSelected = selectedClaim?.id === c.id;
-                return (
-                  <div
-                    key={c.id}
-                    onClick={() => setSelectedClaim(c)}
-                    className={`p-3 rounded-lg border text-xs font-mono transition-all cursor-pointer flex items-center justify-between ${
-                      isSelected
-                        ? "bg-cyan-950/50 border-cyan-500 text-white shadow-[0_0_15px_rgba(6,182,212,0.25)]"
-                        : "bg-slate-900/60 border-slate-800 text-slate-300 hover:border-slate-700"
+            {/* Compact Claim Details Panel (Contains all 10 required fields) */}
+            {activeClaim ? (
+              <div className="border-t border-slate-800 pt-3 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-[10px] uppercase text-cyan-400 font-semibold tracking-wider">
+                    Claim Details
+                  </div>
+                  <span
+                    className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider ${
+                      activeClaim.riskLevel === "HIGH"
+                        ? "bg-rose-950/80 text-rose-300 border border-rose-600 shadow-[0_0_8px_rgba(244,63,94,0.4)]"
+                        : activeClaim.riskLevel === "MEDIUM"
+                        ? "bg-amber-950/80 text-amber-300 border border-amber-600 shadow-[0_0_8px_rgba(245,158,11,0.3)]"
+                        : "bg-emerald-950/80 text-emerald-300 border border-emerald-600 shadow-[0_0_8px_rgba(16,185,129,0.3)]"
                     }`}
                   >
-                    <div className="space-y-1">
+                    {activeClaim.riskLevel} Risk
+                  </span>
+                </div>
+
+                {/* 10 Required Items Table */}
+                <div className="space-y-1.5 text-xs">
+                  <div className="flex justify-between py-1 border-b border-slate-800/80">
+                    <span className="text-slate-400">Claim ID:</span>
+                    <span className="font-bold text-white">{activeClaim.claimId}</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-slate-800/80">
+                    <span className="text-slate-400">State:</span>
+                    <span className="font-semibold text-slate-200">{activeClaim.state}</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-slate-800/80">
+                    <span className="text-slate-400">District:</span>
+                    <span className="font-semibold text-cyan-300">{activeClaim.district}</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-slate-800/80">
+                    <span className="text-slate-400">Claimed Area:</span>
+                    <span className="font-semibold text-white">{formatArea(activeClaim.claimedArea)}</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-slate-800/80">
+                    <span className="text-slate-400">Recorded Area:</span>
+                    <span className="font-semibold text-white">{formatArea(activeClaim.recordedArea)}</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-slate-800/80">
+                    <span className="text-slate-400">Area Mismatch:</span>
+                    <span
+                      className={`font-semibold ${
+                        activeClaim.areaMismatch > 20 ? "text-rose-400 font-bold" : "text-slate-200"
+                      }`}
+                    >
+                      {activeClaim.areaMismatch.toFixed(1)}%
+                    </span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-slate-800/80">
+                    <span className="text-slate-400">Processing Days:</span>
+                    <span
+                      className={`font-semibold ${
+                        activeClaim.processingDays > 200 ? "text-amber-400" : "text-slate-200"
+                      }`}
+                    >
+                      {activeClaim.processingDays} days
+                    </span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-slate-800/80">
+                    <span className="text-slate-400">Land-Cover Change:</span>
+                    <span
+                      className={`font-semibold ${
+                        activeClaim.landCoverChange < -15 ? "text-rose-400" : "text-emerald-400"
+                      }`}
+                    >
+                      {activeClaim.landCoverChange > 0 ? "+" : ""}
+                      {activeClaim.landCoverChange.toFixed(1)}%
+                    </span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-slate-800/80">
+                    <span className="text-slate-400">ML Anomaly Score:</span>
+                    <span className="font-bold text-cyan-400">
+                      {activeClaim.mlScore.toFixed(1)} / 100
+                    </span>
+                  </div>
+                  <div className="flex justify-between py-1">
+                    <span className="text-slate-400">Risk Level:</span>
+                    <span
+                      className={`font-bold ${
+                        activeClaim.riskLevel === "HIGH"
+                          ? "text-rose-400"
+                          : activeClaim.riskLevel === "MEDIUM"
+                          ? "text-amber-400"
+                          : "text-emerald-400"
+                      }`}
+                    >
+                      {activeClaim.riskLevel}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Gemini AI Evidence Explanation Layer */}
+                <GeminiClaimExplanation key={activeClaim.claimId} claim={activeClaim} />
+              </div>
+            ) : (
+              <div className="border-t border-slate-800 pt-3 text-slate-400 text-xs">
+                {loadingClaims
+                  ? "Loading claims & ML scores..."
+                  : "Click any claim marker or district polygon on the map to inspect."}
+              </div>
+            )}
+          </div>
+
+          {/* District Selector & Parcel List */}
+          <div className="glass-panel rounded-xl p-3.5 border border-slate-800 font-mono text-xs space-y-2.5 flex-1 min-h-[220px]">
+            <div className="flex items-center justify-between gap-2 border-b border-slate-800/80 pb-2">
+              <div>
+                <span className="text-[11px] font-bold text-slate-200 uppercase tracking-wider">
+                  District Selection
+                </span>
+                <div className="text-[10px] text-slate-400">
+                  {districtsWithClaims.length} districts with synthetic claims
+                </div>
+              </div>
+
+              {allDistrictsForMenu.length > 0 && (
+                <div className="relative">
+                  <select
+                    value={activeDistrict || ""}
+                    onChange={(e) => {
+                      setSelectedDistrict(e.target.value);
+                      setSelectedClaim(null);
+                    }}
+                    className="bg-slate-900 border border-slate-700 text-cyan-400 font-semibold text-xs rounded px-2.5 py-1 focus:outline-none focus:border-cyan-500 cursor-pointer"
+                  >
+                    {allDistrictsForMenu.map((d) => (
+                      <option key={d.district} value={d.district}>
+                        {d.district} ({d.total} claims)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+
+            {/* Claims in currently selected district */}
+            {districtClaims.length > 0 ? (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-[10px] text-slate-400 font-semibold">
+                  <span>Claims in {activeDistrict} ({districtClaims.length})</span>
+                  <span>Click to select</span>
+                </div>
+                <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1 custom-scrollbar">
+                  {districtClaims.map((c) => (
+                    <button
+                      key={c.id}
+                      onClick={() => setSelectedClaim(c)}
+                      className={`w-full text-left p-2 rounded border transition-all flex items-center justify-between cursor-pointer ${
+                        activeClaim?.id === c.id
+                          ? "bg-cyan-950/60 border-cyan-500 text-white shadow-[0_0_8px_rgba(6,182,212,0.25)]"
+                          : "bg-slate-900/40 border-slate-800/80 text-slate-300 hover:border-slate-700 hover:bg-slate-800/50"
+                      }`}
+                    >
+                      <div>
+                        <span className="font-semibold">{c.claimId}</span>
+                        <div className="text-[10px] text-slate-400">
+                          {formatArea(c.claimedArea)} • Mismatch: {c.areaMismatch}%
+                        </div>
+                      </div>
                       <div className="flex items-center gap-2">
-                        <span className="font-bold text-white">{c.id}</span>
+                        <span className="text-[10px] text-cyan-400">
+                          Score: {c.mlScore.toFixed(0)}
+                        </span>
                         <span
-                          className={`text-[9px] px-1.5 py-0.2 rounded uppercase font-semibold ${
-                            c.severity === "critical"
-                              ? "bg-rose-950 text-rose-400 border border-rose-800"
-                              : c.severity === "review"
-                              ? "bg-amber-950 text-amber-400 border border-amber-800"
-                              : "bg-emerald-950 text-emerald-400 border border-emerald-800"
+                          className={`text-[9px] px-1.5 py-0.5 rounded uppercase font-bold ${
+                            c.riskLevel === "HIGH"
+                              ? "bg-rose-950 text-rose-300 border border-rose-800"
+                              : c.riskLevel === "MEDIUM"
+                              ? "bg-amber-950 text-amber-300 border border-amber-800"
+                              : "bg-emerald-950 text-emerald-300 border border-emerald-800"
                           }`}
                         >
-                          {c.severity}
+                          {c.riskLevel}
                         </span>
                       </div>
-                      <div className="text-[11px] text-slate-400">
-                        {c.district} • {c.claimType.split(" ")[0]} • {formatArea(c.claimedAreaHa)}
-                      </div>
-                    </div>
-
-                    <div className="text-right">
-                      <div className="text-xs font-bold text-cyan-400">
-                        Score {c.aiScore}
-                      </div>
-                      <div className="text-[10px] text-slate-500">
-                        {c.processingDays} days
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="text-slate-400 text-xs py-4 text-center">
+                {loadingClaims
+                  ? "Loading claims..."
+                  : "No synthetic claims in this district. Pick a district from the dropdown or click one on the map."}
+              </div>
+            )}
           </div>
         </div>
       </div>

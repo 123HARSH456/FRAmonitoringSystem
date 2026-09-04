@@ -4,6 +4,9 @@
  * Not real government records.
  */
 
+import { resolveState } from "./statesData";
+import { FRA_DEMO_CLAIMS } from "./fraDemoDataset";
+
 export const MOCK_CLAIMS = [
   {
     id: "FRA-2026-00421",
@@ -227,9 +230,152 @@ export const MOCK_CLAIMS = [
 ];
 
 export const getClaimsByState = (stateId) => {
-  return MOCK_CLAIMS.filter((c) => c.stateId === stateId.toLowerCase());
+  if (!stateId) return [];
+  const resolved = resolveState(stateId);
+  const queryName = resolved ? resolved.name.toLowerCase() : stateId.toLowerCase().replace(/_/g, " ");
+
+  // 1. Check if state has claims in the official 35-claim FRA demo dataset
+  const demoMatched = FRA_DEMO_CLAIMS.filter(
+    (c) =>
+      c.state.toLowerCase() === queryName ||
+      (resolved && c.state.toLowerCase() === resolved.id.replace(/_/g, " "))
+  );
+
+  if (demoMatched.length > 0) {
+    return demoMatched.map((c) => {
+      const [lat, lng] = [c.latitude, c.longitude];
+      const severity = c.riskScore >= 70 ? "critical" : c.riskScore >= 40 ? "review" : "normal";
+      return {
+        ...c,
+        stateId: resolved ? resolved.id : stateId.toLowerCase(),
+        claimedAreaHa: c.claimedArea,
+        recordedAreaHa: c.recordedArea,
+        severity,
+        aiScore: c.riskScore,
+        centroid: [lat, lng],
+        polygon: [
+          [lat + 0.005, lng - 0.006],
+          [lat + 0.008, lng + 0.004],
+          [lat - 0.002, lng + 0.007],
+          [lat - 0.007, lng - 0.001],
+          [lat + 0.005, lng - 0.006],
+        ],
+        detectedIssues:
+          c.riskScore >= 70
+            ? [
+                { id: "spatial_anomaly", label: `Anomaly: ${c.landCoverChange}`, severity: "high" },
+                { id: "proc_delay", label: `SLA delay: ${c.processingDays} days elapsed`, severity: "medium" },
+              ]
+            : c.riskScore >= 40
+            ? [{ id: "review_alert", label: `Review: ${c.landCoverChange}`, severity: "medium" }]
+            : [],
+      };
+    });
+  }
+
+  // 2. Otherwise fallback to MOCK_CLAIMS
+  const matched = MOCK_CLAIMS.filter(
+    (c) =>
+      c.stateId === stateId.toLowerCase() ||
+      (resolved &&
+        (c.stateId === resolved.id ||
+          c.stateId === resolved.code.toLowerCase() ||
+          (resolved.aliases && resolved.aliases.includes(c.stateId))))
+  );
+  if (matched.length > 0) return matched;
+
+  // Generate realistic claims for any state in India using its center coordinates & districts
+  if (!resolved || !resolved.center) return [];
+  const [cLat, cLng] = resolved.center;
+  const d1 = resolved.districts?.[0] || `${resolved.name} Forest Sector`;
+  const d2 = resolved.districts?.[1] || `${resolved.name} East Range`;
+  const d3 = resolved.districts?.[2] || `${resolved.name} Reserve Buffer`;
+
+  return [
+    {
+      id: `FRA-${resolved.code || "IN"}-001`,
+      stateId: resolved.id,
+      district: d1,
+      village: `${d1} Sector`,
+      claimant: "Tribal Rights Committee",
+      claimType: "CFR (Community Forest Resource)",
+      severity: "critical",
+      status: "Investigation Pending",
+      claimedAreaHa: 16.5,
+      recordedAreaHa: 11.2,
+      processingDays: 190,
+      submissionDate: "2025-06-12",
+      polygon: [
+        [cLat + 0.03, cLng + 0.04],
+        [cLat + 0.045, cLng + 0.065],
+        [cLat + 0.035, cLng + 0.08],
+        [cLat + 0.015, cLng + 0.06],
+        [cLat + 0.03, cLng + 0.04],
+      ],
+      centroid: [cLat + 0.031, cLng + 0.061],
+      detectedIssues: [
+        { id: "area_mismatch", label: "Claimed area exceeds recorded patta (+47%)", severity: "high" },
+        { id: "proc_delay", label: "Processing elapsed time > 180 days SLA", severity: "medium" },
+      ],
+      aiScore: 84,
+      aiAssessment: "Spatial boundary discrepancy flagged between revenue survey and Gram Sabha claim polygon.",
+    },
+    {
+      id: `FRA-${resolved.code || "IN"}-002`,
+      stateId: resolved.id,
+      district: d2,
+      village: `${d2} Range`,
+      claimant: "Local FRC Beneficiary",
+      claimType: "IFR (Individual Forest Rights)",
+      severity: "review",
+      status: "SDLC Under Review",
+      claimedAreaHa: 3.8,
+      recordedAreaHa: 3.4,
+      processingDays: 112,
+      submissionDate: "2025-08-20",
+      polygon: [
+        [cLat - 0.04, cLng - 0.03],
+        [cLat - 0.025, cLng - 0.015],
+        [cLat - 0.035, cLng + 0.005],
+        [cLat - 0.05, cLng - 0.01],
+        [cLat - 0.04, cLng - 0.03],
+      ],
+      centroid: [cLat - 0.037, cLng - 0.012],
+      detectedIssues: [
+        { id: "border_align", label: "Forest compartment border adjustment needed", severity: "medium" },
+      ],
+      aiScore: 48,
+      aiAssessment: "Minor boundary misalignment with adjoining reserved forest compartment.",
+    },
+    {
+      id: `FRA-${resolved.code || "IN"}-003`,
+      stateId: resolved.id,
+      district: d3,
+      village: `${d3} Fringe`,
+      claimant: "Gram Sabha Patta Holder",
+      claimType: "IFR (Individual Forest Rights)",
+      severity: "normal",
+      status: "Title Dispatched",
+      claimedAreaHa: 2.1,
+      recordedAreaHa: 2.1,
+      processingDays: 58,
+      submissionDate: "2025-11-15",
+      polygon: [
+        [cLat + 0.05, cLng - 0.04],
+        [cLat + 0.062, cLng - 0.028],
+        [cLat + 0.055, cLng - 0.015],
+        [cLat + 0.042, cLng - 0.025],
+        [cLat + 0.05, cLng - 0.04],
+      ],
+      centroid: [cLat + 0.052, cLng - 0.027],
+      detectedIssues: [],
+      aiScore: 10,
+      aiAssessment: "Verified normal claim: Cadastral coordinates align with satellite imagery.",
+    },
+  ];
 };
 
 export const getClaimById = (claimId) => {
   return MOCK_CLAIMS.find((c) => c.id === claimId);
 };
+

@@ -1,399 +1,394 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { MapContainer, TileLayer, GeoJSON, useMap } from "react-leaflet";
+import { MapContainer, GeoJSON, Marker, useMap } from "react-leaflet";
+import L from "leaflet";
 import { STATES_DATA, resolveState } from "../../data/statesData";
 import { formatNumber } from "../../utils/formatters";
-import {
-  AlertOctagon,
-  AlertTriangle,
-  FileText,
-  CheckCircle2,
-  ChevronRight,
-  Search,
-  Eye,
-  Layers,
-  Sparkles
-} from "lucide-react";
+import { fetchIndiaGeoJSON } from "../../utils/geoCache";
+import { ChevronRight, Search } from "lucide-react";
 
-// Helper component to lock and fit India bounds neatly
-function FitIndiaBounds() {
+// Crisp territory label badge for island UTs
+function createTerritoryLabelIcon(name, isSelected) {
+  return L.divIcon({
+    className: "island-territory-label-icon",
+    html: `
+      <div style="
+        font-family: monospace;
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        color: ${isSelected ? "#38bdf8" : "#94a3b8"};
+        background: ${isSelected ? "rgba(8, 145, 178, 0.4)" : "rgba(14, 28, 46, 0.85)"};
+        border: 1px solid ${isSelected ? "#38bdf8" : "rgba(56, 189, 248, 0.45)"};
+        border-radius: 4px;
+        padding: 2px 7px;
+        white-space: nowrap;
+        cursor: pointer;
+        box-shadow: ${isSelected ? "0 0 10px rgba(56, 189, 248, 0.5)" : "0 2px 6px rgba(0,0,0,0.5)"};
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        transition: all 0.2s ease;
+      ">
+        <span style="width: 6px; height: 6px; border-radius: 50%; background-color: ${
+          isSelected ? "#38bdf8" : "#06b6d4"
+        }; display: inline-block;"></span>
+        <span>${name}</span>
+      </div>
+    `,
+    iconSize: [96, 22],
+    iconAnchor: [48, 11],
+  });
+}
+
+// Auto-fit bounds strictly to India and prevent panning outside
+function FitIndiaBounds({ activeState }) {
   const map = useMap();
+
   useEffect(() => {
-    // Exact geographic bounding box for India mainland and islands
+    // Bounds encompassing mainland, Lakshadweep (west) and Andaman (south/east)
     const indiaBounds = [
-      [7.5, 68.0],
-      [36.8, 97.5],
+      [6.0, 67.5],
+      [37.4, 97.8],
     ];
-    map.fitBounds(indiaBounds, { padding: [15, 15] });
+    map.fitBounds(indiaBounds, { padding: [8, 8] });
+    map.setMaxBounds([
+      [4.0, 60.0],
+      [40.0, 103.0],
+    ]);
   }, [map]);
+
+  useEffect(() => {
+    if (activeState && activeState.center && activeState.id !== "india") {
+      // Optional subtle pan to active state
+    }
+  }, [activeState, map]);
+
   return null;
 }
 
 export default function IndiaOverviewMap() {
   const [geoData, setGeoData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [hoveredState, setHoveredState] = useState(resolveState("mp"));
-  const [searchQuery, setSearchQuery] = useState("");
-  const [mapStyle, setMapStyle] = useState("dark"); // 'dark' | 'satellite'
+  const [selectedState, setSelectedState] = useState(resolveState("madhya_pradesh"));
+  const [searchFilter, setSearchFilter] = useState("");
   const geoJsonRef = useRef(null);
   const navigate = useNavigate();
 
-  // Load optimized India states GeoJSON
   useEffect(() => {
-    fetch("/data/india-states.geojson")
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to load geojson");
-        return res.json();
-      })
-      .then((data) => {
-        setGeoData(data);
-        setLoading(false);
+    let isMounted = true;
+    fetchIndiaGeoJSON()
+      .then((stateData) => {
+        if (isMounted) {
+          setGeoData(stateData);
+          setLoading(false);
+        }
       })
       .catch((err) => {
-        console.error("Error loading India GeoJSON:", err);
-        setLoading(false);
+        console.error("Error loading India states GeoJSON:", err);
+        if (isMounted) setLoading(false);
       });
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-  const handleStateSelect = (stateId) => {
+  const handleStateClick = (stateId) => {
     navigate(`/state/${stateId}`);
   };
 
   const filteredStates = STATES_DATA.filter(
     (s) =>
-      s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.code.toLowerCase().includes(searchQuery.toLowerCase())
+      s.name.toLowerCase().includes(searchFilter.toLowerCase()) ||
+      s.code.toLowerCase().includes(searchFilter.toLowerCase())
   );
 
-  // Dynamic polygon styling based on critical anomalies and telemetry
   const getStateStyle = (feature) => {
-    const stateName = feature.properties.name;
-    const state = resolveState(stateName);
-    const isCritical = state.stats.criticalAnomalies > 25;
+    const rawState = feature.properties.st_nm || feature.properties.name || "";
+    const stateObj = resolveState(rawState);
+    const isSelected = selectedState && stateObj && selectedState.id === stateObj.id;
 
     return {
-      fillColor: isCritical ? "#f43f5e" : "#0ea5e9",
-      fillOpacity: isCritical ? 0.22 : 0.14,
-      color: isCritical ? "rgba(244, 63, 94, 0.75)" : "rgba(56, 189, 248, 0.55)",
-      weight: 1.2,
-      dashArray: "",
+      fillColor: isSelected ? "#0891b2" : "#0e1c2e",
+      fillOpacity: isSelected ? 0.85 : 0.65,
+      color: isSelected ? "#38bdf8" : "rgba(56, 189, 248, 0.45)",
+      weight: isSelected ? 2.2 : 1.1,
     };
   };
 
   const onEachFeature = (feature, layer) => {
-    const stateName = feature.properties.name;
-    const state = resolveState(stateName);
+    const rawState = feature.properties.st_nm || feature.properties.name || "Unknown State";
+    const stateObj = resolveState(rawState);
+    const stateDisplayName = stateObj?.name || rawState;
+    const totalClaimsFormatted = stateObj ? formatNumber(stateObj.stats.totalClaims) : "N/A";
+    const anomaliesFormatted = stateObj ? formatNumber(stateObj.stats.anomalies) : "0";
 
-    // High-tech telemetry tooltip attached directly to polygon
+    // Show state name and overview metrics on hover
     layer.bindTooltip(
       `
-      <div style="font-family: monospace; font-size: 11px; color: #f8fafc; line-height: 1.3;">
-        <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid rgba(56,189,248,0.3); padding-bottom: 3px; margin-bottom: 4px;">
-          <strong style="color: #38bdf8; font-size: 12px;">${state.name}</strong>
-          <span style="color: #94a3b8; font-size: 10px;">${state.code}</span>
+      <div style="font-family: monospace; font-size: 12px; color: #f8fafc; line-height: 1.35;">
+        <strong style="color: #38bdf8; font-size: 13px;">${stateDisplayName}</strong>
+        <div style="color: #94a3b8; font-size: 11px; margin-top: 2px;">
+          Total Claims: <span style="color: #f8fafc; font-weight: 600;">${totalClaimsFormatted}</span>
         </div>
-        <div>Total Claims: <strong>${formatNumber(state.stats.totalClaims)}</strong></div>
-        <div style="color: #60a5fa;">Pending: ${formatNumber(state.stats.pendingClaims)}</div>
-        <div style="color: ${state.stats.criticalAnomalies > 20 ? '#f43f5e' : '#f59e0b'}; font-weight: bold;">
-          Critical: ${state.stats.criticalAnomalies}
+        <div style="color: #94a3b8; font-size: 11px;">
+          Anomalies: <span style="color: #f59e0b; font-weight: 600;">${anomaliesFormatted}</span>
         </div>
-        <div style="margin-top: 4px; color: #06b6d4; font-size: 10px;">Click to enter State GIS →</div>
+        <div style="color: #06b6d4; font-size: 10px; margin-top: 4px; font-weight: 600;">Click to view state monitoring &rarr;</div>
       </div>
     `,
-      {
-        sticky: true,
-        className: "custom-leaflet-tooltip",
-      }
+      { sticky: true, className: "custom-leaflet-tooltip" }
     );
 
-    // Interactive Hover & Click listeners
     layer.on({
       mouseover: (e) => {
         const l = e.target;
         l.setStyle({
-          weight: 2.8,
+          weight: 2.4,
           color: "#38bdf8",
           fillColor: "#06b6d4",
-          fillOpacity: 0.5,
+          fillOpacity: 0.8,
         });
         l.bringToFront();
-        setHoveredState(state);
+        if (stateObj) {
+          setSelectedState(stateObj);
+        }
       },
       mouseout: (e) => {
         const l = e.target;
         l.setStyle(getStateStyle(feature));
       },
       click: () => {
-        handleStateSelect(state.id);
+        if (stateObj) {
+          handleStateClick(stateObj.id);
+        }
       },
     });
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-      {/* Left: Interactive Real India Map with State Boundaries (Col 1-7) */}
-      <div className="lg:col-span-7 glass-panel rounded-xl p-5 border border-slate-800 relative overflow-hidden">
-        {/* Subtle background glow */}
-        <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_top,rgba(6,182,212,0.06),transparent_70%)]" />
+    <div className="flex flex-col lg:flex-row gap-4 items-stretch flex-1 w-full h-full min-h-0">
+      {/* Primary Map Canvas - Responsive size on mobile (360-440px), 60% and full-height on desktop */}
+      <div className="w-full lg:w-[60%] h-[360px] sm:h-[440px] lg:h-full min-h-[320px] sm:min-h-[420px] lg:min-h-0 relative rounded-xl overflow-hidden border border-slate-800 bg-[#050912] shadow-2xl flex-shrink-0">
+        {/* Subtle grid background only for aesthetics */}
+        <div
+          className="absolute inset-0 opacity-10 pointer-events-none"
+          style={{
+            backgroundImage: "radial-gradient(#38bdf8 1px, transparent 1px)",
+            backgroundSize: "28px 28px",
+          }}
+        />
 
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
-              <h2 className="text-sm font-bold tracking-wider text-slate-200 uppercase font-mono">
-                ACTUAL INDIA STATES BOUNDARIES (GEOJSON)
-              </h2>
-            </div>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Hover over each individual state to inspect real-time metrics; click to open state WebGIS.
-            </p>
+        {loading && (
+          <div className="absolute inset-0 z-[2000] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center text-cyan-400 font-mono text-xs">
+            <span>Loading India state boundaries...</span>
           </div>
+        )}
 
-          {/* Map Style Controls */}
-          <div className="flex items-center gap-1.5 bg-slate-900/90 p-1 rounded-lg border border-slate-800 text-xs font-mono">
-            <button
-              onClick={() => setMapStyle("dark")}
-              className={`px-2.5 py-1 rounded transition-all flex items-center gap-1 cursor-pointer ${
-                mapStyle === "dark"
-                  ? "bg-cyan-500 text-slate-950 font-bold"
-                  : "text-slate-400 hover:text-white"
-              }`}
-            >
-              <Layers className="w-3 h-3" />
-              <span>Carto Dark</span>
-            </button>
-            <button
-              onClick={() => setMapStyle("satellite")}
-              className={`px-2.5 py-1 rounded transition-all flex items-center gap-1 cursor-pointer ${
-                mapStyle === "satellite"
-                  ? "bg-cyan-500 text-slate-950 font-bold"
-                  : "text-slate-400 hover:text-white"
-              }`}
-            >
-              <Eye className="w-3 h-3" />
-              <span>Esri Satellite</span>
-            </button>
-          </div>
-        </div>
+        <MapContainer
+          center={[22.5, 82.0]}
+          zoom={5}
+          minZoom={4.5}
+          maxZoom={8}
+          maxBoundsViscosity={1.0}
+          attributionControl={false}
+          scrollWheelZoom={true}
+          className="w-full h-full !bg-transparent"
+        >
+          <FitIndiaBounds activeState={selectedState} />
 
-        {/* The Leaflet Map Container */}
-        <div className="relative w-full h-[520px] rounded-lg overflow-hidden border border-slate-800/80 bg-[#060a12]">
-          {loading && (
-            <div className="absolute inset-0 z-[2000] bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center gap-2 text-cyan-400 font-mono text-xs">
-              <span className="w-6 h-6 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin"></span>
-              <span>Loading official India State Boundaries...</span>
-            </div>
+          {/* Render ONLY India State / UT Boundaries on initial view */}
+          {geoData && (
+            <GeoJSON
+              ref={geoJsonRef}
+              key={geoData.name || "india-states-layer"}
+              data={geoData}
+              style={getStateStyle}
+              onEachFeature={onEachFeature}
+            />
           )}
 
-          <MapContainer
-            center={[22.5, 82.0]}
-            zoom={5}
-            minZoom={4}
-            maxZoom={9}
-            scrollWheelZoom={true}
-            className="w-full h-full"
-          >
-            <FitIndiaBounds />
-
-            {/* Base Tile Layers */}
-            {mapStyle === "dark" ? (
-              <TileLayer
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
-                url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-                subdomains="abcd"
-                maxZoom={19}
-              />
-            ) : (
-              <>
-                <TileLayer
-                  attribution="Tiles &copy; Esri"
-                  url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-                  maxZoom={18}
-                />
-                <TileLayer
-                  attribution="&copy; Esri"
-                  url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
-                  maxZoom={18}
-                  opacity={0.6}
-                />
-              </>
+          {/* Interactive Territory Label for Lakshadweep in the Arabian Sea */}
+          <Marker
+            position={[10.2, 70.8]}
+            icon={createTerritoryLabelIcon(
+              "Lakshadweep",
+              selectedState?.id === "lakshadweep"
             )}
+            eventHandlers={{
+              mouseover: () => {
+                const state = resolveState("lakshadweep");
+                if (state) setSelectedState(state);
+              },
+              click: () => {
+                handleStateClick("lakshadweep");
+              },
+            }}
+          />
 
-            {/* Individual State Boundary Polygons with Hover Glow */}
-            {geoData && (
-              <GeoJSON
-                key={`india-states-${mapStyle}`}
-                ref={geoJsonRef}
-                data={geoData}
-                style={getStateStyle}
-                onEachFeature={onEachFeature}
-              />
+          {/* Interactive Territory Label for Andaman & Nicobar in Bay of Bengal */}
+          <Marker
+            position={[11.5, 95.2]}
+            icon={createTerritoryLabelIcon(
+              "Andaman & Nicobar",
+              selectedState?.id === "andaman_and_nicobar_islands"
             )}
-          </MapContainer>
+            eventHandlers={{
+              mouseover: () => {
+                const state = resolveState("andaman_and_nicobar_islands");
+                if (state) setSelectedState(state);
+              },
+              click: () => {
+                handleStateClick("andaman_and_nicobar_islands");
+              },
+            }}
+          />
+        </MapContainer>
 
-          {/* Bottom HUD bar */}
-          <div className="absolute bottom-3 left-3 z-[1000] bg-slate-950/90 backdrop-blur-md px-3 py-1.5 rounded border border-slate-800 text-[11px] font-mono text-slate-400 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
-            <span>EACH STATE HOVERABLE &amp; DRILLABLE (35 STATES / UTs)</span>
-          </div>
-
-          <div className="absolute bottom-3 right-3 z-[1000] bg-slate-950/90 backdrop-blur-md px-2.5 py-1.5 rounded border border-slate-800 text-[10px] font-mono text-slate-400 flex items-center gap-2">
-            <span className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded bg-cyan-500/40 border border-cyan-400"></span> Standard
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded bg-rose-500/40 border border-rose-400"></span> High Critical
-            </span>
-          </div>
+        {/* Minimal helper prompt */}
+        <div className="absolute bottom-3 left-3 z-[1000] bg-slate-950/85 backdrop-blur-sm px-3 py-1.5 rounded border border-slate-800 text-[11px] font-mono text-slate-400">
+          Hover a state to view details • Click to enter state view
         </div>
       </div>
 
-      {/* Right: State Telemetry Inspector (Col 8-12) */}
-      <div className="lg:col-span-5 space-y-4">
-        {hoveredState ? (
-          <div className="glass-panel-glow rounded-xl p-5 border border-cyan-500/40 relative">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-mono uppercase tracking-wider text-cyan-400 bg-cyan-950/60 px-2 py-0.5 rounded border border-cyan-800/60">
-                    INSPECTED STATE
-                  </span>
-                  <span className="text-[10px] font-mono text-slate-400">
-                    CODE: {hoveredState.code}
-                  </span>
-                </div>
-                <h3 className="text-xl font-bold text-white mt-1">
-                  {hoveredState.name}
-                </h3>
-              </div>
-              <button
-                onClick={() => handleStateSelect(hoveredState.id)}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs transition-all shadow-[0_0_15px_rgba(6,182,212,0.4)] cursor-pointer"
-              >
-                <span>ENTER GIS</span>
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-
-            <p className="text-xs text-slate-300 leading-relaxed mb-4">
-              {hoveredState.description}
-            </p>
-
-            {/* 4 Mock Telemetry Metric Tiles */}
-            <div className="grid grid-cols-2 gap-3 mb-4">
-              <div className="bg-slate-900/80 p-3 rounded-lg border border-slate-800">
-                <div className="flex items-center justify-between text-slate-400 text-xs mb-1">
-                  <span>Total Claims</span>
-                  <FileText className="w-3.5 h-3.5 text-cyan-400" />
-                </div>
-                <div className="text-lg font-bold text-white font-mono">
-                  {formatNumber(hoveredState.stats.totalClaims)}
-                </div>
-                <span className="text-[10px] text-slate-500 font-mono">CFR &amp; IFR Titles</span>
-              </div>
-
-              <div className="bg-slate-900/80 p-3 rounded-lg border border-slate-800">
-                <div className="flex items-center justify-between text-slate-400 text-xs mb-1">
-                  <span>Pending</span>
-                  <CheckCircle2 className="w-3.5 h-3.5 text-blue-400" />
-                </div>
-                <div className="text-lg font-bold text-blue-300 font-mono">
-                  {formatNumber(hoveredState.stats.pendingClaims)}
-                </div>
-                <span className="text-[10px] text-slate-500 font-mono">Under DLC/SDLC</span>
-              </div>
-
-              <div className="bg-slate-900/80 p-3 rounded-lg border border-slate-800">
-                <div className="flex items-center justify-between text-slate-400 text-xs mb-1">
-                  <span>Anomalies</span>
-                  <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-                </div>
-                <div className="text-lg font-bold text-amber-400 font-mono">
-                  {formatNumber(hoveredState.stats.anomalies)}
-                </div>
-                <span className="text-[10px] text-amber-500/80 font-mono">Verification flagged</span>
-              </div>
-
-              <div className="bg-slate-900/80 p-3 rounded-lg border border-rose-900/40">
-                <div className="flex items-center justify-between text-slate-400 text-xs mb-1">
-                  <span>Critical</span>
-                  <AlertOctagon className="w-3.5 h-3.5 text-rose-400" />
-                </div>
-                <div className="text-lg font-bold text-rose-400 font-mono flex items-center gap-1.5">
-                  <span>{hoveredState.stats.criticalAnomalies}</span>
-                  <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
-                </div>
-                <span className="text-[10px] text-rose-400/80 font-mono">Immediate field action</span>
+      {/* Contextual Information Panel - 40% width with scrollable All-India State Jump */}
+      <div className="w-full lg:w-[40%] flex flex-col gap-3 lg:overflow-y-auto pr-0 lg:pr-1">
+        {/* State Metrics Card */}
+        <div className="glass-panel rounded-xl p-4 border border-slate-800 space-y-3.5 shrink-0">
+          <div>
+            <div className="flex items-center justify-between">
+              <div className="text-[10px] font-mono uppercase text-cyan-400 font-semibold tracking-wider">
+                Selected State
               </div>
             </div>
-
-            {/* Geographical Context */}
-            <div className="p-3 bg-slate-950/70 rounded-lg border border-slate-800/80 text-xs space-y-1.5 font-mono">
-              <div className="flex justify-between text-slate-400">
-                <span>Recorded Forest Area:</span>
-                <span className="text-emerald-400 font-medium">
-                  {formatNumber(hoveredState.stats.forestCoverKm2)} km²
-                </span>
-              </div>
-              <div className="flex justify-between text-slate-400">
-                <span>Scheduled Tribes Population:</span>
-                <span className="text-cyan-400 font-medium">
-                  {hoveredState.stats.tribalPopulationPercent}%
-                </span>
-              </div>
-              <div className="flex justify-between text-slate-400">
-                <span>Target High-Activity Districts:</span>
-                <span className="text-slate-300 truncate max-w-[200px]">
-                  {hoveredState.districts.slice(0, 3).join(", ")}...
-                </span>
-              </div>
-            </div>
+            <h3 className="text-xl font-bold text-white mt-0.5">
+              {selectedState.name}
+            </h3>
           </div>
-        ) : null}
 
-        {/* Quick Directory / State Search */}
-        <div className="glass-panel rounded-xl p-4 border border-slate-800">
-          <div className="flex items-center justify-between mb-3">
-            <h4 className="text-xs font-semibold text-slate-300 uppercase tracking-wider font-mono flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-              <span>PRIMARY PILOT STATES ({filteredStates.length})</span>
-            </h4>
-            <div className="relative w-40">
-              <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2" />
+          {/* 4 Simple Key Fields */}
+          <div className="space-y-2 font-mono text-xs">
+            <div className="flex justify-between py-1 border-b border-slate-800">
+              <span className="text-slate-400">Total Claims:</span>
+              <span className="font-bold text-white text-sm">
+                {formatNumber(selectedState.stats.totalClaims)}
+              </span>
+            </div>
+
+            <div className="flex justify-between py-1 border-b border-slate-800">
+              <span className="text-slate-400">Pending:</span>
+              <span className="font-bold text-blue-400 text-sm">
+                {formatNumber(selectedState.stats.pendingClaims)}
+              </span>
+            </div>
+
+            <div className="flex justify-between py-1 border-b border-slate-800">
+              <span className="text-slate-400">Anomalies:</span>
+              <span className="font-bold text-amber-400 text-sm">
+                {formatNumber(selectedState.stats.anomalies)}
+              </span>
+            </div>
+
+            {selectedState.stats.criticalAnomalies > 0 && (
+              <div className="flex justify-between py-1 border-b border-slate-800">
+                <span className="text-rose-400">Critical Alerts:</span>
+                <span className="font-bold text-rose-400 text-sm">
+                  {selectedState.stats.criticalAnomalies}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Short status / alert */}
+          <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 text-xs text-slate-300 leading-relaxed">
+            {selectedState.stats.criticalAnomalies > 20
+              ? `High anomaly density. ${selectedState.stats.criticalAnomalies} claims flagged for field verification.`
+              : "Active spatial monitoring. Baseline records synchronized with state revenue records."}
+          </div>
+
+          {/* Action button */}
+          <button
+            onClick={() => handleStateClick(selectedState.id)}
+            className="w-full py-2.5 px-3 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-[0_0_15px_rgba(6,182,212,0.3)]"
+          >
+            <span>View {selectedState.name} Monitoring</span>
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Quick State Jump: All 36 States of India in a Scrollable Way */}
+        <div className="glass-panel rounded-xl p-3.5 border border-slate-800 font-mono text-xs flex flex-col flex-1 min-h-[220px]">
+          <div className="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-slate-800/80">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-bold text-slate-200 uppercase tracking-wider">
+                Quick State Jump
+              </span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-cyan-400 font-semibold">
+                {STATES_DATA.length} States &amp; UTs
+              </span>
+            </div>
+
+            {/* Quick Filter Search */}
+            <div className="relative w-36">
+              <Search className="w-3 h-3 text-slate-500 absolute left-2 top-2 pointer-events-none" />
               <input
                 type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search state..."
-                className="w-full pl-8 pr-2 py-1 text-xs bg-slate-900 border border-slate-700 rounded text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                value={searchFilter}
+                onChange={(e) => setSearchFilter(e.target.value)}
+                placeholder="Search..."
+                className="w-full pl-6 pr-2 py-1 text-[11px] bg-slate-900 border border-slate-700 rounded text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500"
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
-            {filteredStates.map((s) => (
-              <button
-                key={s.id}
-                onClick={() => handleStateSelect(s.id)}
-                onMouseEnter={() => setHoveredState(s)}
-                className={`p-2.5 rounded-lg border text-left transition-all flex flex-col justify-between cursor-pointer ${
-                  hoveredState?.id === s.id
-                    ? "bg-cyan-950/40 border-cyan-500/60 text-white"
-                    : "bg-slate-900/60 border-slate-800 text-slate-300 hover:border-slate-700"
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold text-xs text-white">{s.name}</span>
-                  <span className="text-[10px] font-mono text-cyan-400">{s.code}</span>
-                </div>
-                <div className="flex items-center justify-between text-[11px] font-mono text-slate-400 mt-2">
-                  <span>{formatNumber(s.stats.totalClaims)} claims</span>
-                  <span className="text-rose-400 font-semibold">
-                    {s.stats.criticalAnomalies} crit
-                  </span>
-                </div>
-              </button>
-            ))}
+          {/* Scrollable list of ALL Indian states */}
+          <div className="flex-1 overflow-y-auto max-h-60 space-y-1 pr-1 custom-scrollbar">
+            {filteredStates.map((s) => {
+              const isSelected = selectedState?.id === s.id;
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => setSelectedState(s)}
+                  onDoubleClick={() => handleStateClick(s.id)}
+                  className={`w-full text-left px-2.5 py-1.5 rounded-lg border transition-all flex items-center justify-between text-xs cursor-pointer ${
+                    isSelected
+                      ? "bg-cyan-950/60 border-cyan-500 text-white shadow-[0_0_10px_rgba(6,182,212,0.25)]"
+                      : "bg-slate-900/40 border-slate-800/80 text-slate-300 hover:bg-slate-800/60 hover:border-slate-700"
+                  }`}
+                  title="Click to select on map • Double-click to view state"
+                >
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full ${
+                        isSelected ? "bg-cyan-400" : "bg-slate-600"
+                      }`}
+                    />
+                    <span className="font-medium text-[11px] truncate max-w-[180px]">
+                      {s.name}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2 font-mono text-[10px]">
+                    <span className="text-slate-500">{s.code}</span>
+                    <span
+                      className={
+                        s.stats.criticalAnomalies > 20
+                          ? "text-rose-400 font-semibold"
+                          : "text-slate-400"
+                      }
+                    >
+                      {formatNumber(s.stats.totalClaims)}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+
+            {filteredStates.length === 0 && (
+              <div className="text-center py-4 text-slate-500 text-xs">
+                No matching states found.
+              </div>
+            )}
           </div>
         </div>
       </div>

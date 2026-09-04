@@ -1,260 +1,404 @@
-import { useEffect, useState } from "react";
-import { MapContainer, TileLayer, Polygon, Marker, Popup, useMap } from "react-leaflet";
+import { useState, useEffect, useMemo, Fragment } from "react";
+import { MapContainer, TileLayer, Polygon, Marker, Popup, GeoJSON, useMap } from "react-leaflet";
 import L from "leaflet";
-import { Layers, Eye } from "lucide-react";
 import { formatArea } from "../../utils/formatters";
+import {
+  fetchIndiaGeoJSON,
+  fetchDistrictsGeoJSON,
+  findStateFeature,
+  createInvertedMask,
+  getDistrictsForState,
+  formatDistrictName,
+} from "../../utils/geoCache";
 
-// Controller component to smoothly pan/zoom when state changes
-function MapController({ center, zoom }) {
+// MapController: smooth dynamic fit to state boundary & bounds locking
+function MapController({ stateFeature, state }) {
   const map = useMap();
+
   useEffect(() => {
-    if (center) {
-      map.setView(center, zoom, { animate: true, duration: 1 });
+    // Reset any previous bounding restrictions first to prevent view locking across state switches
+    map.setMaxBounds(null);
+    map.setMinZoom(3);
+
+    if (stateFeature) {
+      const geoLayer = L.geoJSON(stateFeature);
+      const bounds = geoLayer.getBounds();
+      if (bounds.isValid()) {
+        map.fitBounds(bounds, { padding: [28, 28], maxZoom: 12, animate: true });
+        map.setMaxBounds(bounds.pad(0.35));
+        const currentZoom = map.getZoom();
+        map.setMinZoom(Math.max(4, currentZoom - 1));
+        return;
+      }
     }
-  }, [center, zoom, map]);
+
+    // Fallback if state feature not yet parsed
+    if (state?.bounds) {
+      map.fitBounds(state.bounds, { padding: [28, 28], maxZoom: 12, animate: true });
+      map.setMaxBounds(L.latLngBounds(state.bounds).pad(0.35));
+    } else if (state?.center) {
+      map.setView(state.center, state.zoom || 7, { animate: true });
+    }
+  }, [stateFeature, state, map]);
+
   return null;
 }
 
-// Custom Leaflet DivIcon generator for Anomaly Markers (per DESIGN.md lines 118-145)
-function createAnomalyMarkerIcon(severity) {
-  let color = "#10b981"; // normal: green
-  let glowColor = "rgba(16, 185, 129, 0.4)";
-  let iconHtml = "✓";
-
-  if (severity === "critical") {
-    color = "#f43f5e"; // critical: red
-    glowColor = "rgba(244, 63, 94, 0.7)";
-    iconHtml = "⚠";
-  } else if (severity === "review") {
-    color = "#f59e0b"; // review: yellow
-    glowColor = "rgba(245, 158, 11, 0.6)";
-    iconHtml = "!";
+// Clean, compact div icon for claim markers with ML risk levels
+function createClaimMarkerIcon(riskLevel, isSelected) {
+  let color = "#10b981"; // LOW: emerald
+  let pulseColor = "rgba(16, 185, 129, 0.4)";
+  if (riskLevel === "HIGH") {
+    color = "#f43f5e"; // HIGH: rose/red
+    pulseColor = "rgba(244, 63, 94, 0.6)";
+  } else if (riskLevel === "MEDIUM") {
+    color = "#f59e0b"; // MEDIUM: amber
+    pulseColor = "rgba(245, 158, 11, 0.5)";
   }
 
+  const size = isSelected ? 18 : 14;
+  const borderSize = isSelected ? 3 : 2;
+
   return L.divIcon({
-    className: "custom-anomaly-div-icon",
+    className: "ml-claim-marker-icon",
     html: `
       <div style="
-        position: relative;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        width: ${size}px;
+        height: ${size}px;
+        border-radius: 50%;
+        background-color: ${color};
+        border: ${borderSize}px solid ${isSelected ? "#38bdf8" : "#0f172a"};
+        box-shadow: 0 0 ${isSelected ? "14px" : "8px"} ${color}, 0 0 0 ${isSelected ? "4px" : "0px"} ${pulseColor};
         transform: translate(-50%, -50%);
         cursor: pointer;
-      ">
-        <div style="
-          width: 28px;
-          height: 28px;
-          border-radius: 6px;
-          background: #0f172a;
-          border: 2px solid ${color};
-          box-shadow: 0 0 12px ${glowColor};
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: ${color};
-          font-weight: 800;
-          font-size: 13px;
-          font-family: monospace;
-        ">
-          ${iconHtml}
-        </div>
-        ${
-          severity === "critical"
-            ? `<span style="
-                position: absolute;
-                width: 36px;
-                height: 36px;
-                border-radius: 8px;
-                border: 1px solid ${color};
-                animation: pulse-critical 2s infinite ease-in-out;
-                pointer-events: none;
-              "></span>`
-            : ""
-        }
-      </div>
+        transition: all 0.2s ease;
+      "></div>
     `,
-    iconSize: [28, 28],
-    iconAnchor: [14, 14],
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
   });
 }
 
-export default function StateGISMap({ state, claims, selectedClaim, onSelectClaim }) {
-  const [activeLayer, setActiveLayer] = useState("satellite"); // 'satellite' | 'dark'
+export default function StateGISMap({
+  state,
+  selectedDistrict,
+  onSelectDistrict,
+  claims = [],
+  selectedClaim,
+  onSelectClaim,
+}) {
+  const [geoData, setGeoData] = useState(null);
+  const [districtsData, setDistrictsData] = useState(null);
+  const [loadingBoundary, setLoadingBoundary] = useState(true);
+
+  // Load cached India States GeoJSON
+  useEffect(() => {
+    let isMounted = true;
+    fetchIndiaGeoJSON()
+      .then((data) => {
+        if (isMounted) {
+          setGeoData(data);
+          setLoadingBoundary(false);
+        }
+      })
+      .catch((err) => {
+        console.error("Error loading boundary for state GIS mask:", err);
+        if (isMounted) setLoadingBoundary(false);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Load cached India Districts GeoJSON
+  useEffect(() => {
+    let isMounted = true;
+    fetchDistrictsGeoJSON()
+      .then((data) => {
+        if (isMounted) {
+          setDistrictsData(data);
+        }
+      })
+      .catch((err) => {
+        console.error("Error loading districts in StateGISMap:", err);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Find exact GeoJSON feature for this state
+  const stateFeature = useMemo(() => {
+    return findStateFeature(geoData, state);
+  }, [geoData, state]);
+
+  // Filter districts strictly for this state
+  const stateDistricts = useMemo(() => {
+    return getDistrictsForState(districtsData, state);
+  }, [districtsData, state]);
+
+  // Generate Inverted Mask (world box minus state hole)
+  const maskGeoJSON = useMemo(() => {
+    return createInvertedMask(stateFeature);
+  }, [stateFeature]);
 
   return (
-    <div className="relative w-full h-[620px] rounded-xl overflow-hidden border border-slate-800 glass-panel shadow-[0_15px_35px_rgba(0,0,0,0.6)]">
-      {/* Top Map HUD overlay */}
-      <div className="absolute top-3 left-3 z-[1000] bg-slate-950/85 backdrop-blur-md px-3.5 py-2 rounded-lg border border-slate-700/80 text-xs font-mono flex items-center gap-3">
-        <div className="flex items-center gap-2">
-          <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse"></span>
-          <span className="font-bold text-slate-200">
-            {state.name.toUpperCase()} WEBGIS
-          </span>
-        </div>
-        <span className="text-slate-500">|</span>
-        <span className="text-cyan-400">{claims.length} Demarcated Claims</span>
-      </div>
+    <div className="relative w-full h-[360px] sm:h-[440px] lg:h-full min-h-[320px] sm:min-h-[420px] lg:min-h-0 rounded-xl overflow-hidden border border-slate-800 bg-[#060a12] shadow-2xl">
+      {/* Background radial pattern */}
+      <div
+        className="absolute inset-0 opacity-10 pointer-events-none z-[400]"
+        style={{
+          backgroundImage: "radial-gradient(#38bdf8 1px, transparent 1px)",
+          backgroundSize: "28px 28px",
+        }}
+      />
 
-      {/* Layer Toggle Button Group HUD */}
-      <div className="absolute top-3 right-3 z-[1000] bg-slate-950/85 backdrop-blur-md p-1 rounded-lg border border-slate-700/80 text-xs font-mono flex items-center gap-1">
-        <button
-          onClick={() => setActiveLayer("satellite")}
-          className={`px-2.5 py-1 rounded transition-all flex items-center gap-1.5 cursor-pointer ${
-            activeLayer === "satellite"
-              ? "bg-cyan-500 text-slate-950 font-bold shadow-[0_0_10px_rgba(6,182,212,0.4)]"
-              : "text-slate-400 hover:text-white"
-          }`}
-        >
-          <Eye className="w-3.5 h-3.5" />
-          <span>Esri Satellite</span>
-        </button>
-        <button
-          onClick={() => setActiveLayer("dark")}
-          className={`px-2.5 py-1 rounded transition-all flex items-center gap-1.5 cursor-pointer ${
-            activeLayer === "dark"
-              ? "bg-cyan-500 text-slate-950 font-bold shadow-[0_0_10px_rgba(6,182,212,0.4)]"
-              : "text-slate-400 hover:text-white"
-          }`}
-        >
-          <Layers className="w-3.5 h-3.5" />
-          <span>Carto Dark</span>
-        </button>
-      </div>
+      {loadingBoundary && (
+        <div className="absolute inset-0 z-[1500] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center text-cyan-400 font-mono text-xs">
+          <span>Isolating {state.name} satellite boundary...</span>
+        </div>
+      )}
 
-      {/* Map Legend (DESIGN.md requirement) */}
-      <div className="absolute bottom-6 left-4 z-[1000] bg-slate-950/90 backdrop-blur-md p-3 rounded-lg border border-slate-800 text-xs font-mono space-y-2">
-        <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
-          GIS MAP LEGEND
-        </div>
-        <div className="flex items-center gap-2 text-slate-300">
-          <span className="w-3.5 h-3.5 rounded bg-rose-500/30 border border-rose-500 flex items-center justify-center text-[10px] text-rose-400 font-bold">
-            ⚠
-          </span>
-          <span>Critical Anomaly (Score ≥ 60)</span>
-        </div>
-        <div className="flex items-center gap-2 text-slate-300">
-          <span className="w-3.5 h-3.5 rounded bg-amber-500/30 border border-amber-500 flex items-center justify-center text-[10px] text-amber-400 font-bold">
-            !
-          </span>
-          <span>Needs Review (Score 30–59)</span>
-        </div>
-        <div className="flex items-center gap-2 text-slate-300">
-          <span className="w-3.5 h-3.5 rounded bg-emerald-500/30 border border-emerald-500 flex items-center justify-center text-[10px] text-emerald-400 font-bold">
-            ✓
-          </span>
-          <span>Normal Claim (Score &lt; 30)</span>
-        </div>
-        <div className="flex items-center gap-2 text-slate-400 text-[11px] pt-1 border-t border-slate-800">
-          <span className="w-4 h-2 rounded border border-cyan-400 bg-cyan-500/20"></span>
-          <span>Claim Cadastral Polygon</span>
-        </div>
-      </div>
-
-      {/* Leaflet MapContainer */}
       <MapContainer
         center={state.center}
         zoom={state.zoom}
         scrollWheelZoom={true}
-        className="w-full h-full"
+        className="w-full h-full !bg-[#060a12]"
       >
-        <MapController center={state.center} zoom={state.zoom} />
+        <MapController stateFeature={stateFeature} state={state} />
 
-        {/* Primary Esri World Imagery (High-Resolution Satellite) */}
-        {activeLayer === "satellite" && (
-          <>
-            <TileLayer
-              attribution='Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
-              url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-              maxZoom={18}
-            />
-            {/* Esri Reference Boundaries & Places overlay for context */}
-            <TileLayer
-              attribution='&copy; Esri'
-              url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
-              maxZoom={18}
-              opacity={0.7}
-            />
-          </>
-        )}
+        {/* 1. Esri World Imagery (High-Resolution Satellite) */}
+        <TileLayer
+          attribution="Tiles &copy; Esri"
+          url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+          maxZoom={18}
+        />
 
-        {/* Alternate CartoDB Dark Matter Layer for Cyber Command Center look */}
-        {activeLayer === "dark" && (
-          <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
-            url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-            subdomains="abcd"
-            maxZoom={19}
+        {/* 2. Esri Place labels overlay */}
+        <TileLayer
+          attribution="&copy; Esri"
+          url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
+          maxZoom={18}
+          opacity={0.65}
+        />
+
+        {/* 3. Inverted Mask: Solid #060a12 polygon covering everything OUTSIDE state borders */}
+        {maskGeoJSON && (
+          <GeoJSON
+            key={`state-mask-${state.id}`}
+            data={maskGeoJSON}
+            style={{
+              fillColor: "#060a12",
+              fillOpacity: 1.0,
+              stroke: false,
+              weight: 0,
+              color: "#060a12",
+              fillRule: "evenodd",
+            }}
+            interactive={false}
           />
         )}
 
-        {/* Render Synthetic Claim Polygons & Overlaid Anomaly Markers */}
+        {/* 4. State Perimeter Border */}
+        {stateFeature && (
+          <GeoJSON
+            key={`state-border-${state.id}`}
+            data={stateFeature}
+            style={{
+              fill: false,
+              color: "#38bdf8",
+              weight: 2.5,
+              opacity: 0.95,
+            }}
+            interactive={false}
+          />
+        )}
+
+        {/* 5. District Boundaries Layer: Click a district to select it */}
+        {stateDistricts && (
+          <GeoJSON
+            key={`districts-${state.id}-${selectedDistrict || "none"}`}
+            data={stateDistricts}
+            style={(feature) => {
+              const rawDist =
+                feature.properties.district ||
+                feature.properties.dt_nm ||
+                feature.properties.name ||
+                "";
+              const isDistSelected =
+                selectedDistrict &&
+                selectedDistrict.toLowerCase() === rawDist.toLowerCase();
+
+              return {
+                fillColor: isDistSelected ? "#0891b2" : "#0891b2",
+                fillOpacity: isDistSelected ? 0.22 : 0.04,
+                color: isDistSelected ? "#38bdf8" : "rgba(56, 189, 248, 0.35)",
+                weight: isDistSelected ? 2.5 : 1.0,
+              };
+            }}
+            onEachFeature={(feature, layer) => {
+              const rawDist =
+                feature.properties.district ||
+                feature.properties.dt_nm ||
+                feature.properties.name ||
+                "";
+              const districtName = formatDistrictName(rawDist);
+              const isDistSelected =
+                selectedDistrict &&
+                selectedDistrict.toLowerCase() === rawDist.toLowerCase();
+
+              // Show district name and action prompt on hover
+              layer.bindTooltip(
+                `<div style="font-family: monospace; font-size: 11px; color: #f8fafc; line-height: 1.3;">
+                  <strong style="color: #38bdf8; font-size: 12px;">${districtName}</strong>
+                  <div style="color: #94a3b8; font-size: 10px; margin-top: 2px;">
+                    ${isDistSelected ? "Currently active district" : "Click to select & view FRA claims"}
+                  </div>
+                </div>`,
+                { sticky: true, className: "custom-leaflet-tooltip" }
+              );
+
+              layer.on({
+                mouseover: (e) => {
+                  const l = e.target;
+                  l.setStyle({
+                    weight: 2.4,
+                    color: "#38bdf8",
+                    fillColor: "#06b6d4",
+                    fillOpacity: isDistSelected ? 0.3 : 0.16,
+                  });
+                  l.bringToFront();
+                },
+                mouseout: (e) => {
+                  const l = e.target;
+                  l.setStyle({
+                    fillColor: isDistSelected ? "#0891b2" : "#0891b2",
+                    fillOpacity: isDistSelected ? 0.22 : 0.04,
+                    color: isDistSelected ? "#38bdf8" : "rgba(56, 189, 248, 0.35)",
+                    weight: isDistSelected ? 2.5 : 1.0,
+                  });
+                },
+                click: (e) => {
+                  if (onSelectDistrict) {
+                    onSelectDistrict(rawDist);
+                  }
+                  try {
+                    const layer = e.target;
+                    const mapInstance = layer?._map || e.sourceTarget?._map;
+                    if (layer && layer.getBounds && mapInstance) {
+                      const bounds = layer.getBounds();
+                      if (bounds && bounds.isValid && bounds.isValid()) {
+                        mapInstance.fitBounds(bounds, { padding: [28, 28], maxZoom: 13, animate: true });
+                      }
+                    }
+                  } catch (err) {
+                    console.warn("Could not fitBounds on district click:", err);
+                  }
+                },
+              });
+            }}
+          />
+        )}
+
+        {/* 6. Claim Markers & Polygons: Rendered strictly for the selected district */}
         {claims.map((claim) => {
           const isSelected = selectedClaim?.id === claim.id;
-          let polyColor = "#10b981";
-          if (claim.severity === "critical") polyColor = "#f43f5e";
-          else if (claim.severity === "review") polyColor = "#f59e0b";
+          let color = "#10b981"; // LOW
+          if (claim.riskLevel === "HIGH") color = "#f43f5e";
+          else if (claim.riskLevel === "MEDIUM") color = "#f59e0b";
 
           return (
-            <div key={claim.id}>
-              {/* Claim Boundary Polygon (DESIGN.md line 120-136) */}
-              <Polygon
-                positions={claim.polygon}
-                pathOptions={{
-                  color: isSelected ? "#38bdf8" : polyColor,
-                  weight: isSelected ? 3 : 2,
-                  fillColor: polyColor,
-                  fillOpacity: isSelected ? 0.45 : 0.25,
-                  dashArray: isSelected ? "4 4" : undefined,
-                }}
+            <Fragment key={claim.id || claim.claimId}>
+              {claim.polygon && claim.polygon.length > 0 && (
+                <Polygon
+                  positions={claim.polygon}
+                  pathOptions={{
+                    color: isSelected ? "#38bdf8" : color,
+                    weight: isSelected ? 3 : 1.6,
+                    fillColor: color,
+                    fillOpacity: isSelected ? 0.45 : 0.22,
+                  }}
+                  eventHandlers={{
+                    click: () => onSelectClaim && onSelectClaim(claim),
+                  }}
+                />
+              )}
+
+              <Marker
+                position={claim.centroid}
+                icon={createClaimMarkerIcon(claim.riskLevel, isSelected)}
                 eventHandlers={{
-                  click: () => onSelectClaim(claim),
+                  click: () => onSelectClaim && onSelectClaim(claim),
                 }}
               >
                 <Popup>
-                  <div className="font-mono text-xs p-1 space-y-1">
-                    <div className="font-bold text-white flex items-center justify-between gap-2">
-                      <span>{claim.id}</span>
+                  <div className="font-mono text-xs p-1 space-y-1 text-slate-200 min-w-[170px]">
+                    <div className="flex items-center justify-between border-b border-slate-700 pb-1">
+                      <strong className="text-cyan-400">{claim.claimId}</strong>
                       <span
-                        className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${
-                          claim.severity === "critical"
-                            ? "bg-rose-950 text-rose-300 border border-rose-700"
-                            : claim.severity === "review"
-                            ? "bg-amber-950 text-amber-300 border border-amber-700"
-                            : "bg-emerald-950 text-emerald-300 border border-emerald-700"
-                        }`}
+                        style={{
+                          backgroundColor:
+                            claim.riskLevel === "HIGH"
+                              ? "rgba(244, 63, 94, 0.2)"
+                              : claim.riskLevel === "MEDIUM"
+                              ? "rgba(245, 158, 11, 0.2)"
+                              : "rgba(16, 185, 129, 0.2)",
+                          color:
+                            claim.riskLevel === "HIGH"
+                              ? "#f43f5e"
+                              : claim.riskLevel === "MEDIUM"
+                              ? "#f59e0b"
+                              : "#10b981",
+                          border: `1px solid ${
+                            claim.riskLevel === "HIGH"
+                              ? "#f43f5e"
+                              : claim.riskLevel === "MEDIUM"
+                              ? "#f59e0b"
+                              : "#10b981"
+                          }`,
+                        }}
+                        className="text-[9px] px-1.5 py-0.2 rounded font-bold uppercase"
                       >
-                        {claim.severity}
+                        {claim.riskLevel}
                       </span>
                     </div>
-                    <div className="text-slate-300">
-                      <p><strong>District:</strong> {claim.district}</p>
-                      <p><strong>Claimant:</strong> {claim.claimant}</p>
-                      <p><strong>Claimed Area:</strong> {formatArea(claim.claimedAreaHa)}</p>
-                      <p><strong>Status:</strong> {claim.status}</p>
+                    <div className="text-[11px] text-slate-300">
+                      <div>District: <span className="font-semibold text-white">{claim.district}</span></div>
+                      <div>Claimed: <span className="font-semibold text-white">{formatArea(claim.claimedArea)}</span></div>
+                      <div>Mismatch: <span className="font-semibold text-amber-300">{claim.areaMismatch}%</span></div>
+                      <div>ML Score: <span className="font-semibold text-cyan-300">{claim.mlScore} / 100</span></div>
                     </div>
-                    <button
-                      onClick={() => onSelectClaim(claim)}
-                      className="mt-2 w-full py-1 text-center bg-cyan-600 hover:bg-cyan-500 text-white font-semibold rounded text-[11px] cursor-pointer"
-                    >
-                      Investigate Claim Details
-                    </button>
                   </div>
                 </Popup>
-              </Polygon>
-
-              {/* Anomaly Marker Over Centroid (DESIGN.md line 130-139) */}
-              <Marker
-                position={claim.centroid}
-                icon={createAnomalyMarkerIcon(claim.severity)}
-                eventHandlers={{
-                  click: () => onSelectClaim(claim),
-                }}
-              />
-            </div>
+              </Marker>
+            </Fragment>
           );
         })}
       </MapContainer>
+
+      {/* State & District Header Badge */}
+      <div className="absolute top-3 left-3 z-[1000] bg-slate-950/85 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-slate-800 text-[11px] font-mono text-slate-200 flex items-center gap-2 shadow-lg">
+        <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+        <span className="font-semibold text-white">{state.name}</span>
+        <span className="text-slate-500">/</span>
+        <span className="text-cyan-300">
+          {selectedDistrict ? `${selectedDistrict} (${claims.length} claims)` : "Click a district on map"}
+        </span>
+      </div>
+
+      {/* ML Risk Legend */}
+      <div className="absolute bottom-3 left-3 z-[1000] bg-slate-950/85 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-slate-800 text-[11px] font-mono text-slate-300 flex items-center gap-3 shadow-lg">
+        <span className="text-slate-400 font-semibold mr-0.5">ML Risk:</span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shadow-[0_0_6px_#f43f5e]"></span> HIGH
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shadow-[0_0_6px_#f59e0b]"></span> MEDIUM
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_6px_#10b981]"></span> LOW
+        </span>
+      </div>
     </div>
   );
 }
