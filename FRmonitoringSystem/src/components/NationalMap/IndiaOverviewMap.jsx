@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { MapContainer, TileLayer, GeoJSON, Marker, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, GeoJSON, Marker, useMap, Pane } from "react-leaflet";
 import L from "leaflet";
 import { STATES_DATA, resolveState } from "../../data/statesData";
 import { formatNumber } from "../../utils/formatters";
@@ -93,6 +93,53 @@ function MapTransitionController({
   return null;
 }
 
+// Injects high-tech SVG pattern defs into the map SVG for the mask background
+function MapPatternDefs() {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!map) return;
+
+    const injectDefs = () => {
+      const container = map.getContainer();
+      if (!container) return;
+
+      const svgs = container.querySelectorAll("svg");
+      svgs.forEach((svg) => {
+        if (!svg.querySelector("#tactical-mask-grid")) {
+          let defs = svg.querySelector("defs");
+          if (!defs) {
+            defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+            svg.insertBefore(defs, svg.firstChild);
+          }
+          defs.innerHTML = `
+            <pattern id="tactical-mask-grid" width="32" height="32" patternUnits="userSpaceOnUse">
+              <rect width="32" height="32" fill="transparent" />
+              <path d="M 32 0 L 0 0 0 32" fill="none" stroke="rgba(56, 189, 248, 0.12)" stroke-width="0.8" />
+              <circle cx="16" cy="16" r="1.2" fill="#38bdf8" opacity="0.35" />
+              <path d="M 0 16 L 3 16 M 29 16 L 32 16 M 16 0 L 16 3 M 16 29 L 16 32" stroke="#38bdf8" stroke-width="0.6" opacity="0.25" />
+            </pattern>
+          `;
+        }
+      });
+    };
+
+    injectDefs();
+    map.on("layeradd", injectDefs);
+    map.on("viewreset", injectDefs);
+
+    const timer = setTimeout(injectDefs, 120);
+
+    return () => {
+      map.off("layeradd", injectDefs);
+      map.off("viewreset", injectDefs);
+      clearTimeout(timer);
+    };
+  }, [map]);
+
+  return null;
+}
+
 export default function IndiaOverviewMap() {
   const [geoData, setGeoData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -121,6 +168,47 @@ export default function IndiaOverviewMap() {
       isMounted = false;
     };
   }, []);
+
+  // Static geographic mask: single outer world polygon with all India states as holes
+  const indiaMaskGeoJSON = useMemo(() => {
+    if (!geoData || !geoData.features || geoData.features.length === 0) return null;
+
+    const worldOuterRing = [
+      [-180, 85.051129],
+      [180, 85.051129],
+      [180, -85.051129],
+      [-180, -85.051129],
+      [-180, 85.051129],
+    ];
+
+    const holes = [];
+    geoData.features.forEach((feature) => {
+      if (!feature.geometry) return;
+      const { type, coordinates } = feature.geometry;
+      if (type === "Polygon") {
+        if (coordinates && coordinates[0]) {
+          holes.push(coordinates[0]);
+        }
+      } else if (type === "MultiPolygon") {
+        coordinates.forEach((poly) => {
+          if (poly && poly[0]) {
+            holes.push(poly[0]);
+          }
+        });
+      }
+    });
+
+    if (holes.length === 0) return null;
+
+    return {
+      type: "Feature",
+      properties: { name: "india-exterior-static-mask" },
+      geometry: {
+        type: "Polygon",
+        coordinates: [worldOuterRing, ...holes],
+      },
+    };
+  }, [geoData]);
 
   const handleStateClick = (stateId, explicitBounds = null) => {
     if (isTransitioning) return;
@@ -169,7 +257,7 @@ export default function IndiaOverviewMap() {
     if (isTransitioning) {
       return {
         fillColor: isTarget ? "#0891b2" : "#081528",
-        fillOpacity: isTarget ? 0.2 : 0.0,
+        fillOpacity: isTarget ? 0.25 : 0.0,
         color: isTarget ? "#38bdf8" : "rgba(56, 189, 248, 0.0)",
         weight: isTarget ? 2.5 : 0.5,
         opacity: isTarget ? 0.95 : 0.0,
@@ -179,10 +267,10 @@ export default function IndiaOverviewMap() {
 
     return {
       fillColor: isTarget ? "#0891b2" : "#0e1c2e",
-      fillOpacity: isTarget ? 0.75 : 0.5,
-      color: isTarget ? "#38bdf8" : "rgba(56, 189, 248, 0.45)",
-      weight: isTarget ? 2.2 : 1.1,
-      opacity: 0.9,
+      fillOpacity: isTarget ? 0.3 : 0.02,
+      color: isTarget ? "#38bdf8" : "rgba(56, 189, 248, 0.65)",
+      weight: isTarget ? 2.4 : 1.2,
+      opacity: 0.95,
       className: "leaflet-fade-transition",
     };
   };
@@ -216,10 +304,10 @@ export default function IndiaOverviewMap() {
         if (isTransitioning) return;
         const l = e.target;
         l.setStyle({
-          weight: 2.4,
+          weight: 2.5,
           color: "#38bdf8",
           fillColor: "#06b6d4",
-          fillOpacity: 0.8,
+          fillOpacity: 0.35,
         });
         l.bringToFront();
         if (stateObj) {
@@ -294,7 +382,49 @@ export default function IndiaOverviewMap() {
             opacity={0.65}
           />
 
-          {/* Render ONLY India State / UT Boundaries on initial view */}
+          {/* Injects SVG tactical pattern into map SVG defs */}
+          <MapPatternDefs />
+
+          {/* 3. Static Geographic Mask: Native Leaflet vector layer above satellite tiles, below state boundaries */}
+          <Pane name="indiaMaskPane" style={{ zIndex: 350 }}>
+            {/* 100% Solid Black Base: completely covers satellite tiles outside India */}
+            {indiaMaskGeoJSON && (
+              <GeoJSON
+                key="india-exterior-mask-black"
+                data={indiaMaskGeoJSON}
+                style={{
+                  fillColor: "#020617",
+                  fillOpacity: isTransitioning ? 0 : 1.0,
+                  stroke: false,
+                  weight: 0,
+                  color: "#020617",
+                  fillRule: "evenodd",
+                  className: "leaflet-fade-transition",
+                }}
+                interactive={false}
+              />
+            )}
+
+            {/* Tactical cyber grid pattern applied on top of the black mask */}
+            {indiaMaskGeoJSON && (
+              <GeoJSON
+                key="india-exterior-mask-pattern"
+                data={indiaMaskGeoJSON}
+                style={{
+                  fillColor: "url(#tactical-mask-grid)",
+                  fillOpacity: isTransitioning ? 0 : 1.0,
+                  stroke: false,
+                  weight: 0,
+                  color: "transparent",
+                  fillRule: "evenodd",
+                  className: "leaflet-fade-transition",
+                }}
+                interactive={false}
+              />
+            )}
+          </Pane>
+
+          {/* 4. Render ONLY India State / UT Boundaries on initial view (in overlayPane at zIndex 400) */}
           {geoData && (
             <GeoJSON
               ref={geoJsonRef}
