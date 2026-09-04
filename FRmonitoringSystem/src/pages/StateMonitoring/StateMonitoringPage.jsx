@@ -100,13 +100,18 @@ export default function StateMonitoringPage() {
     return list;
   }, [districtsWithClaims, activeDistrict, districtClaims.length]);
 
-  // Computed active claim: user-selected if in this district, else first claim in district
+  // Computed active claim: user-selected if in this state, else first claim in district
   const activeClaim = useMemo(() => {
-    if (selectedClaim && districtClaims.some((c) => c.id === selectedClaim.id)) {
-      return selectedClaim;
+    if (selectedClaim) {
+      if (districtClaims.some((c) => c.id === selectedClaim.id)) {
+        return selectedClaim;
+      }
+      if (stateClaims.some((c) => c.id === selectedClaim.id)) {
+        return selectedClaim;
+      }
     }
-    return districtClaims[0] || null;
-  }, [selectedClaim, districtClaims]);
+    return districtClaims[0] || stateClaims[0] || null;
+  }, [selectedClaim, districtClaims, stateClaims]);
 
   return (
     <div className="flex-1 flex flex-col lg:h-full min-h-0 space-y-2 lg:overflow-hidden pb-4 lg:pb-0">
@@ -144,9 +149,14 @@ export default function StateMonitoringPage() {
               setSelectedDistrict(dist);
               setSelectedClaim(null);
             }}
-            claims={districtClaims}
+            claims={stateClaims}
             selectedClaim={activeClaim}
-            onSelectClaim={(claim) => setSelectedClaim(claim)}
+            onSelectClaim={(claim) => {
+              setSelectedClaim(claim);
+              if (claim?.district) {
+                setSelectedDistrict(claim.district);
+              }
+            }}
           />
         </div>
 

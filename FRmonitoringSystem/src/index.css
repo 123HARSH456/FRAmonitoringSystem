@@ -132,3 +132,50 @@ path.leaflet-fade-transition {
 path.district-fade-in {
   transition: opacity 0.55s ease, fill-opacity 0.55s ease, stroke-opacity 0.55s ease;
 }
+
+/* District Claim Marker Beacon and Pulse Animations */
+@keyframes district-beacon-pulse {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.95;
+  }
+  60% {
+    transform: scale(1.6);
+    opacity: 0.45;
+  }
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
+@keyframes district-claim-blink {
+  0%, 100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  50% {
+    transform: scale(1.18);
+    filter: brightness(1.35);
+  }
+}
+
+.district-marker-beacon {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  animation: district-beacon-pulse 1.8s cubic-bezier(0.2, 0.8, 0.4, 1) infinite;
+  pointer-events: none;
+}
+
+.pulse-district-claim {
+  animation: district-claim-blink 1.8s ease-in-out infinite;
+}
+
+.ml-claim-marker-icon {
+  background: transparent !important;
+  border: none !important;
+}
+

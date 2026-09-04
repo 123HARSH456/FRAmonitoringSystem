@@ -109,6 +109,25 @@ export function filterClaimsByState(claims, stateNameOrId) {
 }
 
 /**
+ * Check if a claim belongs to a given district name (with case-insensitive & alias handling).
+ */
+export function isClaimInDistrict(claim, districtName) {
+  if (!claim || !districtName) return false;
+  const query = districtName.toString().toLowerCase().trim();
+  const dist = (claim.district || "").toLowerCase().trim();
+  if (!dist) return false;
+  if (dist === query) return true;
+
+  const cleanQuery = query.replace(/\s*\([^)]*\)/g, "").trim();
+  const cleanDist = dist.replace(/\s*\([^)]*\)/g, "").trim();
+  return (
+    cleanDist === cleanQuery ||
+    (cleanQuery.length > 3 && cleanDist.includes(cleanQuery)) ||
+    (cleanDist.length > 3 && query.includes(cleanDist))
+  );
+}
+
+/**
  * Filter claims for a specific district name.
  */
 export function filterClaimsByDistrict(claims, districtName) {
@@ -119,18 +138,8 @@ export function filterClaimsByDistrict(claims, districtName) {
   const exact = claims.filter((c) => (c.district || "").toLowerCase().trim() === query);
   if (exact.length > 0) return exact;
 
-  // 2. Fallback to clean name without parenthetical descriptors (e.g. "Khargone (West Nimar)" vs "Khargone")
-  const cleanQuery = query.replace(/\s*\([^)]*\)/g, "").trim();
-  return claims.filter((c) => {
-    const dist = (c.district || "").toLowerCase().trim();
-    const cleanDist = dist.replace(/\s*\([^)]*\)/g, "").trim();
-    return (
-      dist === query ||
-      cleanDist === cleanQuery ||
-      (cleanQuery.length > 3 && dist.includes(cleanQuery)) ||
-      (cleanDist.length > 3 && query.includes(cleanDist))
-    );
-  });
+  // 2. Fallback to clean name without parenthetical descriptors
+  return claims.filter((c) => isClaimInDistrict(c, districtName));
 }
 
 /**

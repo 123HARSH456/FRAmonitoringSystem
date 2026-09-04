@@ -9,6 +9,22 @@ import {
   getDistrictsForState,
   formatDistrictName,
 } from "../../utils/geoCache";
+import { filterClaimsByState, isClaimInDistrict } from "../../services/claimsService";
+
+// Helper for matching district names with parenthetical aliases
+function isDistrictMatch(d1, d2) {
+  if (!d1 || !d2) return false;
+  const s1 = d1.toString().toLowerCase().trim();
+  const s2 = d2.toString().toLowerCase().trim();
+  if (s1 === s2) return true;
+  const c1 = s1.replace(/\s*\([^)]*\)/g, "").trim();
+  const c2 = s2.replace(/\s*\([^)]*\)/g, "").trim();
+  return (
+    c1 === c2 ||
+    (c1.length > 3 && c2.includes(c1)) ||
+    (c2.length > 3 && c1.includes(c2))
+  );
+}
 
 // MapController: smooth dynamic fit to state boundary & bounds locking
 function MapController({ stateFeature, state }) {
@@ -43,38 +59,66 @@ function MapController({ stateFeature, state }) {
   return null;
 }
 
-// Clean, compact div icon for claim markers with ML risk levels
-function createClaimMarkerIcon(riskLevel, isSelected) {
+// Clean, compact div icon for claim markers with ML risk levels and visual emphasis for selected district
+function createClaimMarkerIcon(riskLevel, isSelected, isInSelectedDistrict) {
   let color = "#10b981"; // LOW: emerald
-  let pulseColor = "rgba(16, 185, 129, 0.4)";
+  let pulseRgbaSubtle = "rgba(16, 185, 129, 0.3)";
   if (riskLevel === "HIGH") {
     color = "#f43f5e"; // HIGH: rose/red
-    pulseColor = "rgba(244, 63, 94, 0.6)";
+    pulseRgbaSubtle = "rgba(244, 63, 94, 0.35)";
   } else if (riskLevel === "MEDIUM") {
     color = "#f59e0b"; // MEDIUM: amber
-    pulseColor = "rgba(245, 158, 11, 0.5)";
+    pulseRgbaSubtle = "rgba(245, 158, 11, 0.35)";
   }
 
-  const size = isSelected ? 18 : 14;
-  const borderSize = isSelected ? 3 : 2;
+  // Visual hierarchy:
+  // - Selected Claim: 18px dot, cyan halo border, zIndex 1000
+  // - In Selected District: 15px dot, white border, blinking beacon ripple & breathing pulse, zIndex 500
+  // - Normal / In Other Districts: 13px dot, dark slate border, subtle glow, visible normally, zIndex 100
+  const dotSize = isSelected ? 18 : isInSelectedDistrict ? 15 : 13;
+  const borderSize = isSelected ? 3 : isInSelectedDistrict ? 2.5 : 2;
+  const borderColor = isSelected ? "#38bdf8" : isInSelectedDistrict ? "#ffffff" : "#0f172a";
+  const zIndex = isSelected ? 1000 : isInSelectedDistrict ? 500 : 100;
+
+  // Beacon ripple ring for emphasized/blinking claims inside the active district
+  const beaconHtml = isInSelectedDistrict
+    ? `<span class="district-marker-beacon" style="border-color: ${color};"></span>`
+    : "";
 
   return L.divIcon({
-    className: "ml-claim-marker-icon",
+    className: `ml-claim-marker-icon ${isInSelectedDistrict ? "marker-in-district" : "marker-normal"} ${isSelected ? "marker-selected" : ""}`,
     html: `
       <div style="
-        width: ${size}px;
-        height: ${size}px;
-        border-radius: 50%;
-        background-color: ${color};
-        border: ${borderSize}px solid ${isSelected ? "#38bdf8" : "#0f172a"};
-        box-shadow: 0 0 ${isSelected ? "14px" : "8px"} ${color}, 0 0 0 ${isSelected ? "4px" : "0px"} ${pulseColor};
-        transform: translate(-50%, -50%);
-        cursor: pointer;
-        transition: all 0.2s ease;
-      "></div>
+        position: relative;
+        width: 36px;
+        height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: ${zIndex};
+      ">
+        ${beaconHtml}
+        <div class="${isInSelectedDistrict ? "pulse-district-claim" : ""}" style="
+          width: ${dotSize}px;
+          height: ${dotSize}px;
+          border-radius: 50%;
+          background-color: ${color};
+          border: ${borderSize}px solid ${borderColor};
+          box-shadow: ${
+            isSelected
+              ? `0 0 16px ${color}, 0 0 0 4px #38bdf8`
+              : isInSelectedDistrict
+              ? `0 0 12px ${color}, 0 0 0 2px ${pulseRgbaSubtle}`
+              : `0 0 6px ${color}`
+          };
+          cursor: pointer;
+          transition: all 0.2s ease;
+        "></div>
+      </div>
     `,
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2],
+    iconSize: [36, 36],
+    iconAnchor: [18, 18],
+    popupAnchor: [0, -16],
   });
 }
 
@@ -136,6 +180,24 @@ export default function StateGISMap({
   const stateDistricts = useMemo(() => {
     return getDistrictsForState(districtsData, state);
   }, [districtsData, state]);
+
+  // 1. visibleClaims: ALL claims belonging to the currently selected state
+  // Even when a district is clicked/selected, ALL claims in the state must remain visible on the map.
+  const visibleClaims = useMemo(() => {
+    if (!claims || claims.length === 0) return [];
+    if (state?.name || state?.id) {
+      const stateFiltered = filterClaimsByState(claims, state.name || state.id);
+      return stateFiltered.length > 0 ? stateFiltered : claims;
+    }
+    return claims;
+  }, [claims, state]);
+
+  // 2. selectedDistrict: purely visual selection/highlight state
+  // Used to visually emphasize / blink claims inside that district, while claims in other districts remain visible normally.
+  const selectedDistrictClaimsCount = useMemo(() => {
+    if (!selectedDistrict) return 0;
+    return visibleClaims.filter((c) => isClaimInDistrict(c, selectedDistrict)).length;
+  }, [visibleClaims, selectedDistrict]);
 
   // Smoothly fade in district boundaries once loaded
   useEffect(() => {
@@ -202,7 +264,7 @@ export default function StateGISMap({
           />
         )}
 
-        {/* 4. District Boundaries Layer: Exactly as in districts.geojson with smooth fade-in */}
+        {/* 4. District Boundaries Layer: Exactly as in districts.geojson with visual selection highlight */}
         {stateDistricts && (
           <GeoJSON
             key={`districts-${state.id}-${selectedDistrict || "none"}`}
@@ -213,9 +275,7 @@ export default function StateGISMap({
                 feature.properties.dt_nm ||
                 feature.properties.name ||
                 "";
-              const isDistSelected =
-                selectedDistrict &&
-                selectedDistrict.toLowerCase() === rawDist.toLowerCase();
+              const isDistSelected = isDistrictMatch(selectedDistrict, rawDist);
 
               return {
                 fillColor: "#0891b2",
@@ -233,16 +293,14 @@ export default function StateGISMap({
                 feature.properties.name ||
                 "";
               const districtName = formatDistrictName(rawDist);
-              const isDistSelected =
-                selectedDistrict &&
-                selectedDistrict.toLowerCase() === rawDist.toLowerCase();
+              const isDistSelected = isDistrictMatch(selectedDistrict, rawDist);
 
               // Show district name and action prompt on hover
               layer.bindTooltip(
                 `<div style="font-family: monospace; font-size: 11px; color: #f8fafc; line-height: 1.3;">
                   <strong style="color: #38bdf8; font-size: 12px;">${districtName}</strong>
                   <div style="color: #94a3b8; font-size: 10px; margin-top: 2px;">
-                    ${isDistSelected ? "Currently active district" : "Click to select & view FRA claims"}
+                    ${isDistSelected ? "Currently active district" : "Click to select & highlight claims"}
                   </div>
                 </div>`,
                 { sticky: true, className: "custom-leaflet-tooltip" }
@@ -291,9 +349,12 @@ export default function StateGISMap({
           />
         )}
 
-        {/* 6. Claim Markers & Polygons: Rendered strictly for the selected district */}
-        {claims.map((claim) => {
+        {/* 5. Claim Markers & Polygons: ALL state claims remain visible. Selected district claims are visually emphasized/blinking. */}
+        {visibleClaims.map((claim) => {
           const isSelected = selectedClaim?.id === claim.id;
+          const isInSelectedDistrict = Boolean(
+            selectedDistrict && isClaimInDistrict(claim, selectedDistrict)
+          );
           let color = "#10b981"; // LOW
           if (claim.riskLevel === "HIGH") color = "#f43f5e";
           else if (claim.riskLevel === "MEDIUM") color = "#f59e0b";
@@ -305,21 +366,32 @@ export default function StateGISMap({
                   positions={claim.polygon}
                   pathOptions={{
                     color: isSelected ? "#38bdf8" : color,
-                    weight: isSelected ? 3 : 1.6,
+                    weight: isSelected ? 3 : isInSelectedDistrict ? 2 : 1.2,
                     fillColor: color,
-                    fillOpacity: isSelected ? 0.45 : 0.22,
+                    fillOpacity: isSelected ? 0.45 : isInSelectedDistrict ? 0.25 : 0.08,
+                    opacity: isInSelectedDistrict ? 0.9 : 0.5,
                   }}
                   eventHandlers={{
-                    click: () => onSelectClaim && onSelectClaim(claim),
+                    click: () => {
+                      if (onSelectDistrict && claim.district) {
+                        onSelectDistrict(claim.district);
+                      }
+                      if (onSelectClaim) onSelectClaim(claim);
+                    },
                   }}
                 />
               )}
 
               <Marker
                 position={claim.centroid}
-                icon={createClaimMarkerIcon(claim.riskLevel, isSelected)}
+                icon={createClaimMarkerIcon(claim.riskLevel, isSelected, isInSelectedDistrict)}
                 eventHandlers={{
-                  click: () => onSelectClaim && onSelectClaim(claim),
+                  click: () => {
+                    if (onSelectDistrict && claim.district) {
+                      onSelectDistrict(claim.district);
+                    }
+                    if (onSelectClaim) onSelectClaim(claim);
+                  },
                 }}
               >
                 <Popup>
@@ -373,7 +445,9 @@ export default function StateGISMap({
         <span className="font-semibold text-white">{state.name}</span>
         <span className="text-slate-500">/</span>
         <span className="text-cyan-300">
-          {selectedDistrict ? `${selectedDistrict} (${claims.length} claims)` : "Click a district on map"}
+          {selectedDistrict
+            ? `${selectedDistrict} (${selectedDistrictClaimsCount} claims · ${visibleClaims.length} state total)`
+            : `All Districts (${visibleClaims.length} claims)`}
         </span>
       </div>
 
