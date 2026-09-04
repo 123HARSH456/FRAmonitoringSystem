@@ -98,6 +98,45 @@ export function findStateFeature(geoData, state) {
  * Leaflet completely masks out everything outside the state borders, revealing ONLY
  * the satellite imagery inside the state.
  */
+let masksCache = null;
+
+/**
+ * Fetch and cache precomputed topologically certified WGS84 state exterior masks.
+ * Precomputed via Shapely difference to eliminate SVG/Leaflet clipping artifacts.
+ */
+export async function fetchStateMasks() {
+  if (masksCache) return masksCache;
+  try {
+    const res = await fetch("/data/india-state-masks.json");
+    if (res.ok) {
+      masksCache = await res.json();
+      return masksCache;
+    }
+  } catch (err) {
+    console.warn("Could not fetch state masks from /data/india-state-masks.json:", err);
+  }
+  return null;
+}
+
+/**
+ * Retrieve the certified exterior mask GeoJSON feature for a given state.
+ */
+export function getStateExteriorMask(masksData, state) {
+  if (!masksData || !state) return null;
+  const stateId = (state.id || "").toLowerCase().trim();
+  const stateName = (state.name || "").trim();
+
+  return (
+    masksData[stateName] ||
+    masksData[stateId] ||
+    masksData[stateId.replace(/-/g, "_")] ||
+    null
+  );
+}
+
+/**
+ * Fallback generator for inverted mask if precomputed mask is not loaded.
+ */
 export function createInvertedMask(feature) {
   if (!feature || !feature.geometry) return null;
 

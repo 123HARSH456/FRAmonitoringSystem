@@ -5,32 +5,45 @@ import { formatArea } from "../../utils/formatters";
 import {
   fetchIndiaGeoJSON,
   fetchDistrictsGeoJSON,
+  fetchStateMasks,
   findStateFeature,
   getDistrictsForState,
+  getStateExteriorMask,
   formatDistrictName,
+  createInvertedMask,
 } from "../../utils/geoCache";
 import { filterClaimsByState, isClaimInDistrict } from "../../services/claimsService";
 
 // Native Leaflet vector layer for the outside-state mask.
-// Created ONCE when the selected state is loaded; never recreated on pan, zoom, or render.
-function StateExteriorMaskLayer({ stateFeature, stateId }) {
+// Uses precomputed topologically certified WGS84 inverted mask to guarantee zero clipping artifacts.
+function StateExteriorMaskLayer({ stateFeature, stateId, maskFeature }) {
   const map = useMap();
   const layerRef = useRef(null);
 
   useEffect(() => {
-    if (!map || !stateFeature || !stateFeature.geometry) return;
+    if (!map) return;
+
+    // 1. Prefer precomputed, topologically certified WGS84 inverted mask
+    let targetMask = maskFeature;
+
+    // 2. Fallback to clean inverted mask if precomputed data is not yet loaded
+    if (!targetMask && stateFeature && stateFeature.geometry) {
+      targetMask = createInvertedMask(stateFeature);
+    }
+
+    if (!targetMask || !targetMask.geometry) return;
 
     // Remove previous mask layer if switching states
     if (layerRef.current) {
       try {
         map.removeLayer(layerRef.current);
-      } catch (e) {
+      } catch {
         // ignore
       }
       layerRef.current = null;
     }
 
-    // 1. Dedicated pane positioned strictly above satellite tiles (200) and below district vectors (400)
+    // Dedicated pane positioned strictly above satellite tiles (200) and below district vectors (400)
     let pane = map.getPane("stateMaskPane");
     if (!pane) {
       pane = map.createPane("stateMaskPane");
@@ -38,54 +51,14 @@ function StateExteriorMaskLayer({ stateFeature, stateId }) {
       pane.style.pointerEvents = "none";
     }
 
-    // 2. High-padding SVG renderer (2.5x viewport) so dragging and zoom-out never reveal canvas edges
+    // High-padding SVG renderer (2.5x viewport) so dragging and zoom-out never reveal canvas edges
     const maskRenderer = L.svg({
       pane: "stateMaskPane",
       padding: 2.5,
     });
 
-    // 3. World outer boundary
-    const worldOuterRing = [
-      [-180, 85.051129],
-      [180, 85.051129],
-      [180, -85.051129],
-      [-180, -85.051129],
-      [-180, 85.051129],
-    ];
-
-    // 4. Extract exact state boundary rings as holes
-    const holes = [];
-    const { type, coordinates } = stateFeature.geometry;
-
-    if (type === "Polygon") {
-      if (coordinates) {
-        coordinates.forEach((ring) => {
-          if (ring && ring.length > 0) holes.push(ring);
-        });
-      }
-    } else if (type === "MultiPolygon") {
-      if (coordinates) {
-        coordinates.forEach((poly) => {
-          if (poly && poly[0]) {
-            holes.push(poly[0]);
-          }
-        });
-      }
-    }
-
-    if (holes.length === 0) return;
-
-    const maskGeoJSON = {
-      type: "Feature",
-      properties: { name: `state-exterior-mask-${stateId || "active"}` },
-      geometry: {
-        type: "Polygon",
-        coordinates: [worldOuterRing, ...holes],
-      },
-    };
-
-    // 5. Stable native Leaflet GeoJSON layer created once
-    const maskLayer = L.geoJSON(maskGeoJSON, {
+    // Stable native Leaflet GeoJSON layer created once
+    const maskLayer = L.geoJSON(targetMask, {
       renderer: maskRenderer,
       interactive: false,
       style: {
@@ -106,13 +79,13 @@ function StateExteriorMaskLayer({ stateFeature, stateId }) {
       if (layerRef.current && map) {
         try {
           map.removeLayer(layerRef.current);
-        } catch (e) {
+        } catch {
           // ignore
         }
         layerRef.current = null;
       }
     };
-  }, [map, stateFeature, stateId]);
+  }, [map, stateFeature, stateId, maskFeature]);
 
   return null;
 }
