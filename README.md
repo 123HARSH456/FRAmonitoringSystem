@@ -1,4 +1,4 @@
-# CANOPY - Forest Rights Act (FRA) Monitoring System
+# CANOPY — Community Access & Navigation for Ownership and Protection of Yields
 
 A web application and anomaly detection system for tracking, reviewing, and verifying Forest Rights Act claims across India.
 
