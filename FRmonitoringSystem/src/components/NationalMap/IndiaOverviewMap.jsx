@@ -25,8 +25,8 @@ function FitIndiaBounds() {
       ];
       map.fitBounds(indiaBounds, { padding, animate: false });
       map.setMaxBounds([
-        [4.0, 60.0],
-        [40.0, 103.0],
+        [5.0, 66.0],
+        [38.5, 99.0],
       ]);
     };
 
@@ -43,7 +43,70 @@ function FitIndiaBounds() {
   return null;
 }
 
-// Tracks touch/drag interactions on map so dragging or pinch-zooming never triggers state selection
+// High-padding static exterior mask ensuring all world/outside areas remain solid background even when panning to edges
+function IndiaExteriorMaskLayer({ maskGeoJSON, maskBg = "#180b15" }) {
+  const map = useMap();
+  const layerRef = useRef(null);
+
+  useEffect(() => {
+    if (!map || !maskGeoJSON) return;
+
+    if (layerRef.current) {
+      try {
+        map.removeLayer(layerRef.current);
+      } catch {
+        // ignore
+      }
+      layerRef.current = null;
+    }
+
+    let pane = map.getPane("indiaMaskPane");
+    if (!pane) {
+      pane = map.createPane("indiaMaskPane");
+      pane.style.zIndex = "250";
+      pane.style.pointerEvents = "none";
+    }
+
+    // High-padding SVG renderer (3.0x viewport) ensures the dark mask canvas never clips during edge drag
+    const maskRenderer = L.svg({
+      pane: "indiaMaskPane",
+      padding: 3.0,
+    });
+
+    const maskLayer = L.geoJSON(maskGeoJSON, {
+      renderer: maskRenderer,
+      interactive: false,
+      style: {
+        fillColor: maskBg,
+        fillOpacity: 1.0,
+        stroke: false,
+        weight: 0,
+        color: maskBg,
+        fillRule: "evenodd",
+        className: "india-mask-pattern state-mask-no-transition",
+      },
+    });
+
+    maskLayer.addTo(map);
+    layerRef.current = maskLayer;
+
+    return () => {
+      if (layerRef.current && map) {
+        try {
+          map.removeLayer(layerRef.current);
+        } catch {
+          // ignore
+        }
+        layerRef.current = null;
+      }
+    };
+  }, [map, maskGeoJSON, maskBg]);
+
+  return null;
+}
+
+// Central pointer/mouse interaction guard for the main India map
+// Prevents accidental state selection when panning/dragging across states
 function MapTouchController({ isDraggingRef }) {
   const map = useMap();
 
@@ -53,13 +116,15 @@ function MapTouchController({ isDraggingRef }) {
     const container = map.getContainer();
     let startX = 0;
     let startY = 0;
-    let hasMoved = false;
+    let hasDragged = false;
     let resetTimer = null;
+
+    map._isDraggingMap = false;
 
     const onPointerDown = (e) => {
       startX = e.clientX;
       startY = e.clientY;
-      hasMoved = false;
+      hasDragged = false;
       if (resetTimer) {
         clearTimeout(resetTimer);
         resetTimer = null;
@@ -67,40 +132,98 @@ function MapTouchController({ isDraggingRef }) {
       isDraggingRef.current = false;
     };
 
+    const startDragging = () => {
+      hasDragged = true;
+      isDraggingRef.current = true;
+      map._isDraggingMap = true;
+      container.classList.add("map-is-dragging");
+      try {
+        map.closeTooltip?.();
+        map.eachLayer((l) => {
+          if (l.resetStyle) l.resetStyle();
+        });
+      } catch {}
+    };
+
+    const stopDragging = () => {
+      container.classList.remove("map-is-dragging");
+      map._isDraggingMap = false;
+    };
+
     const onPointerMove = (e) => {
-      // 16px threshold for touch on capacitive Android/iOS screens, 6px for desktop mouse
-      const threshold = e.pointerType === "touch" ? 16 : 6;
+      if (e.pointerType === "mouse" && e.buttons === 0) return;
+      // 5-10px movement threshold classifies gesture as DRAG
+      const threshold = e.pointerType === "touch" ? 12 : 8;
       const dx = Math.abs(e.clientX - startX);
       const dy = Math.abs(e.clientY - startY);
       if (dx > threshold || dy > threshold) {
-        hasMoved = true;
-        isDraggingRef.current = true;
+        startDragging();
       }
     };
 
     const onPointerUp = () => {
-      if (hasMoved) {
-        // Genuine drag/pan gesture: keep flag true briefly to swallow delayed synthetic clicks
+      stopDragging();
+      if (hasDragged) {
+        // Keep drag flag active long enough to suppress post-drag synthetic click
+        if (resetTimer) clearTimeout(resetTimer);
         resetTimer = setTimeout(() => {
+          hasDragged = false;
           isDraggingRef.current = false;
-        }, 120);
+        }, 300);
       } else {
-        // Clean tap/click: immediately false so click executes reliably
+        // Clean stationary click with no movement
+        hasDragged = false;
         isDraggingRef.current = false;
       }
+    };
+
+    // Central click guard at map level: captures click before any layer/state receives it
+    const onClickCapture = (e) => {
+      if (hasDragged || isDraggingRef.current) {
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        e.preventDefault();
+        // Post-drag click suppressed: immediately reset flag so subsequent normal clicks work
+        hasDragged = false;
+        isDraggingRef.current = false;
+        stopDragging();
+        if (resetTimer) {
+          clearTimeout(resetTimer);
+          resetTimer = null;
+        }
+      }
+    };
+
+    const onMapMoveStart = () => {
+      startDragging();
+    };
+
+    const onMapMoveEnd = () => {
+      stopDragging();
     };
 
     container.addEventListener("pointerdown", onPointerDown, { passive: true });
     container.addEventListener("pointermove", onPointerMove, { passive: true });
     container.addEventListener("pointerup", onPointerUp, { passive: true });
     container.addEventListener("pointercancel", onPointerUp, { passive: true });
+    window.addEventListener("pointerup", onPointerUp, { passive: true });
+    container.addEventListener("click", onClickCapture, true);
+
+    map.on("dragstart movestart zoomstart", onMapMoveStart);
+    map.on("dragend moveend zoomend", onMapMoveEnd);
 
     return () => {
       if (resetTimer) clearTimeout(resetTimer);
+      container.classList.remove("map-is-dragging");
       container.removeEventListener("pointerdown", onPointerDown);
       container.removeEventListener("pointermove", onPointerMove);
       container.removeEventListener("pointerup", onPointerUp);
       container.removeEventListener("pointercancel", onPointerUp);
+      window.removeEventListener("pointerup", onPointerUp);
+      container.removeEventListener("click", onClickCapture, true);
+      map.off("dragstart movestart zoomstart", onMapMoveStart);
+      map.off("dragend moveend zoomend", onMapMoveEnd);
+      map._isDraggingMap = false;
     };
   }, [map, isDraggingRef]);
 
@@ -463,6 +586,23 @@ export default function IndiaOverviewMap() {
 
     // Tapping on the tooltip itself navigates directly to state monitoring
     layer.on("tooltipopen", (te) => {
+      const mapInstance = te.target?._map;
+      if (
+        isDraggingRef.current ||
+        (mapInstance &&
+          (mapInstance._isDraggingMap ||
+            mapInstance._hasDragged ||
+            mapInstance.getContainer?.().classList.contains("map-is-dragging")))
+      ) {
+        try {
+          te.tooltip?.close?.();
+          te.target?.closeTooltip?.();
+        } catch {
+          // ignore
+        }
+        return;
+      }
+
       const el = te.tooltip?.getElement();
       if (!el) return;
       L.DomEvent.disableClickPropagation(el);
@@ -470,6 +610,7 @@ export default function IndiaOverviewMap() {
 
       let lastNavTime = 0;
       const triggerStateNavigation = (ev) => {
+        if (isDraggingRef.current) return;
         if (ev) {
           if (ev.stopPropagation) ev.stopPropagation();
           if (ev.preventDefault) ev.preventDefault();
@@ -489,7 +630,18 @@ export default function IndiaOverviewMap() {
 
     layer.on({
       mouseover: (e) => {
-        if (isTransitioningRef.current) return;
+        // While dragging with mouse/touch, never activate hoverable state
+        if (e.originalEvent?.buttons > 0) return;
+        if (isTransitioningRef.current || isDraggingRef.current) return;
+        const mapInstance = e.target?._map;
+        if (
+          mapInstance &&
+          (mapInstance._isDraggingMap ||
+            mapInstance._hasDragged ||
+            mapInstance.getContainer?.().classList.contains("map-is-dragging"))
+        ) {
+          return;
+        }
         if (window.innerWidth < 1024) return;
         const l = e.target;
         l.setStyle({
@@ -511,7 +663,14 @@ export default function IndiaOverviewMap() {
         l.setStyle(getStateStyle(feature));
       },
       click: (e) => {
-        if (isTransitioningRef.current || isDraggingRef.current) return;
+        const mapInstance = e.target?._map;
+        if (
+          isTransitioningRef.current ||
+          isDraggingRef.current ||
+          (mapInstance && mapInstance._isDraggingMap)
+        ) {
+          return;
+        }
         const l = e.target;
         const bounds = l?.getBounds ? l.getBounds() : null;
         if (!stateObj) return;
@@ -562,6 +721,10 @@ export default function IndiaOverviewMap() {
           zoom={5}
           minZoom={4.5}
           maxZoom={18}
+          maxBounds={[
+            [5.0, 66.0],
+            [38.5, 99.0],
+          ]}
           maxBoundsViscosity={1.0}
           scrollWheelZoom={!isTransitioning}
           zoomControl={true}
@@ -587,30 +750,22 @@ export default function IndiaOverviewMap() {
             }}
           />
 
-          {/* Satellite Basemap: Real World Imagery */}
+          {/* Satellite Basemap: Real World Imagery restricted strictly to India */}
           <TileLayer
             url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
             attribution=""
             maxZoom={18}
+            bounds={[
+              [5.0, 66.0],
+              [38.5, 99.0],
+            ]}
           />
 
-          {/* Dedicated Leaflet Pane for the exterior mask, positioned strictly above satellite tiles (z=250) */}
-          <Pane name="indiaMaskPane" style={{ zIndex: 250, pointerEvents: "none" }} />
-
-          {/* Stable Static Geographic Exterior Mask */}
+          {/* Stable Static Geographic Exterior Mask with high-padding renderer */}
           {indiaMaskGeoJSON && (
-            <GeoJSON
-              key={`india-exterior-static-mask-${currentThemeConfig?.id || "default"}`}
-              data={indiaMaskGeoJSON}
-              pane="indiaMaskPane"
-              style={{
-                fillColor: currentThemeConfig?.bgBase || "#180b15",
-                fillOpacity: 1.0,
-                stroke: false,
-                weight: 0,
-                fillRule: "evenodd",
-                className: "india-mask-pattern state-mask-no-transition",
-              }}
+            <IndiaExteriorMaskLayer
+              maskGeoJSON={indiaMaskGeoJSON}
+              maskBg={currentThemeConfig?.bgBase || "#180b15"}
             />
           )}
 

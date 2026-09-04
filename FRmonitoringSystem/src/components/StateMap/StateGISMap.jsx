@@ -141,7 +141,7 @@ function MapController({ stateFeature, state }) {
 
 // Shared tooltip state controller for all district hovers
 // Guarantees at most ONE active district tooltip and closes immediately on drag/pan/zoom/click.
-function DistrictTooltipController() {
+function DistrictTooltipController({ activeHoveredLayerRef }) {
   const map = useMap();
   const tooltipRef = useRef(null);
   const isDraggingRef = useRef(false);
@@ -156,6 +156,18 @@ function DistrictTooltipController() {
       interactive: false,
     });
     tooltipRef.current = districtTooltip;
+    map._districtTooltip = districtTooltip;
+
+    const resetHoveredDistrict = () => {
+      if (activeHoveredLayerRef?.current) {
+        try {
+          activeHoveredLayerRef.current._resetStyle?.();
+        } catch {
+          // ignore
+        }
+        activeHoveredLayerRef.current = null;
+      }
+    };
 
     const closeDistrictTooltip = () => {
       try {
@@ -169,21 +181,27 @@ function DistrictTooltipController() {
 
     const onMoveStart = () => {
       isDraggingRef.current = true;
+      map._isDraggingMap = true;
       closeDistrictTooltip();
+      resetHoveredDistrict();
     };
 
     const onMoveEnd = () => {
       isDraggingRef.current = false;
+      map._isDraggingMap = false;
       closeDistrictTooltip();
+      resetHoveredDistrict();
     };
 
     const container = map.getContainer();
     const onMouseDown = () => {
       closeDistrictTooltip();
+      resetHoveredDistrict();
     };
     const onMouseLeave = () => {
       isDraggingRef.current = false;
       closeDistrictTooltip();
+      resetHoveredDistrict();
     };
 
     map.on("dragstart movestart zoomstart", onMoveStart);
@@ -201,9 +219,12 @@ function DistrictTooltipController() {
         container.removeEventListener("mouseleave", onMouseLeave);
       }
       closeDistrictTooltip();
+      resetHoveredDistrict();
       tooltipRef.current = null;
+      map._districtTooltip = null;
+      map._isDraggingMap = false;
     };
-  }, [map]);
+  }, [map, activeHoveredLayerRef]);
 
   return null;
 }
@@ -290,6 +311,19 @@ export default function StateGISMap({
   const [masksData, setMasksData] = useState(null);
   const [loadingBoundary, setLoadingBoundary] = useState(true);
   const [districtsLoaded, setDistrictsLoaded] = useState(false);
+  const activeHoveredLayerRef = useRef(null);
+
+  const getDistrictDefaultStyle = (rawDist) => {
+    const isDistSelected = isDistrictMatch(selectedDistrict, rawDist);
+    return {
+      fillColor: primary,
+      fillOpacity: districtsLoaded ? (isDistSelected ? 0.32 : 0.08) : 0,
+      color: isDistSelected ? highlight : "rgba(187, 132, 147, 0.4)",
+      weight: isDistSelected ? 2.5 : 1.0,
+      opacity: districtsLoaded ? 0.95 : 0,
+      className: "district-fade-in",
+    };
+  };
 
   // Load cached India States GeoJSON & precomputed exterior masks
   useEffect(() => {
@@ -397,7 +431,7 @@ export default function StateGISMap({
         className="w-full h-full !bg-[#180b15]"
       >
         <MapController stateFeature={stateFeature} state={state} />
-        <DistrictTooltipController />
+        <DistrictTooltipController activeHoveredLayerRef={activeHoveredLayerRef} />
 
         {/* 1. Esri World Imagery (High-Resolution Satellite) */}
         <TileLayer
@@ -448,16 +482,7 @@ export default function StateGISMap({
                 feature.properties.dt_nm ||
                 feature.properties.name ||
                 "";
-              const isDistSelected = isDistrictMatch(selectedDistrict, rawDist);
-
-              return {
-                fillColor: primary,
-                fillOpacity: districtsLoaded ? (isDistSelected ? 0.32 : 0.08) : 0,
-                color: isDistSelected ? highlight : "rgba(187, 132, 147, 0.4)",
-                weight: isDistSelected ? 2.5 : 1.0,
-                opacity: districtsLoaded ? 0.95 : 0,
-                className: "district-fade-in",
-              };
+              return getDistrictDefaultStyle(rawDist);
             }}
             onEachFeature={(feature, layer) => {
               const rawDist =
@@ -468,6 +493,10 @@ export default function StateGISMap({
               const districtName = formatDistrictName(rawDist);
               const isDistSelected = isDistrictMatch(selectedDistrict, rawDist);
 
+              layer._resetStyle = () => {
+                layer.setStyle(getDistrictDefaultStyle(rawDist));
+              };
+
               layer.on({
                 mouseover: (e) => {
                   const l = e.target;
@@ -476,13 +505,22 @@ export default function StateGISMap({
                     return;
                   }
 
+                  // Clear previously hovered district so AT MOST ONE district is ever highlighted
+                  if (activeHoveredLayerRef.current && activeHoveredLayerRef.current !== l) {
+                    try {
+                      activeHoveredLayerRef.current._resetStyle?.();
+                    } catch {
+                      // ignore
+                    }
+                  }
+                  activeHoveredLayerRef.current = l;
+
                   l.setStyle({
                     weight: 2.4,
                     color: highlight,
                     fillColor: muted,
                     fillOpacity: isDistSelected ? 0.38 : 0.22,
                   });
-                  l.bringToFront();
 
                   if (mapInstance._districtTooltip) {
                     const tooltipContent = `
@@ -493,7 +531,7 @@ export default function StateGISMap({
                         </div>
                       </div>`;
                     mapInstance._districtTooltip
-                        .setContent(tooltipContent)
+                      .setContent(tooltipContent)
                       .setLatLng(e.latlng);
                     if (!mapInstance.hasLayer(mapInstance._districtTooltip)) {
                       mapInstance._districtTooltip.openOn(mapInstance);
@@ -514,13 +552,14 @@ export default function StateGISMap({
                   if (mapInstance && mapInstance._districtTooltip) {
                     mapInstance._districtTooltip.close();
                   }
-                  l.setStyle({
-                    fillColor: primary,
-                    fillOpacity: isDistSelected ? 0.32 : 0.08,
-                    color: isDistSelected ? highlight : "rgba(187, 132, 147, 0.4)",
-                    weight: isDistSelected ? 2.5 : 1.0,
-                    opacity: 0.95,
-                  });
+                  try {
+                    l._resetStyle?.();
+                  } catch {
+                    // ignore
+                  }
+                  if (activeHoveredLayerRef.current === l) {
+                    activeHoveredLayerRef.current = null;
+                  }
                 },
                 click: (e) => {
                   const l = e.target;
@@ -528,6 +567,14 @@ export default function StateGISMap({
                   // Immediately close tooltip on click so no tooltip stays open after selecting
                   if (mapInstance && mapInstance._districtTooltip) {
                     mapInstance._districtTooltip.close();
+                  }
+                  if (activeHoveredLayerRef.current) {
+                    try {
+                      activeHoveredLayerRef.current._resetStyle?.();
+                    } catch {
+                      // ignore
+                    }
+                    activeHoveredLayerRef.current = null;
                   }
 
                   if (onSelectDistrict) {

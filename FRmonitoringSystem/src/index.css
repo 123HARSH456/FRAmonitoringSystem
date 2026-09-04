@@ -441,3 +441,17 @@ path.state-mask-no-transition {
   border-color: rgba(219, 175, 160, 0.8) !important;
 }
 
+/* While dragging map with mouse or touch: completely suppress hover highlights, pointers and tooltips */
+.map-is-dragging .leaflet-overlay-pane path {
+  pointer-events: none !important;
+}
+
+.map-is-dragging .leaflet-tooltip-pane,
+.map-is-dragging .custom-leaflet-tooltip {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
+}
+
+
