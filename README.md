@@ -104,7 +104,7 @@ The project includes an unsupervised machine learning model that detects anomali
 To retrain or run the model:
 1. Navigate to the ml folder:
    ```bash
-   cd ml
+   cd FRmonitoringSystem/ml
    ```
 2. Install Python dependencies:
    ```bash
