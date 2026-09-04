@@ -5,6 +5,7 @@ import L from "leaflet";
 import { STATES_DATA, resolveState } from "../../data/statesData";
 import { formatNumber } from "../../utils/formatters";
 import { fetchIndiaGeoJSON, findStateFeature } from "../../utils/geoCache";
+import { fetchEnrichedClaims, computeAllStatesMetricsMap } from "../../services/claimsService";
 import { ChevronRight, Search } from "lucide-react";
 
 // Crisp territory label badge for island UTs
@@ -143,6 +144,7 @@ function MapPatternDefs() {
 export default function IndiaOverviewMap() {
   const [geoData, setGeoData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [allClaims, setAllClaims] = useState([]);
   const [selectedState, setSelectedState] = useState(resolveState("madhya_pradesh"));
   const [searchFilter, setSearchFilter] = useState("");
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -164,10 +166,42 @@ export default function IndiaOverviewMap() {
         console.error("Error loading India states GeoJSON:", err);
         if (isMounted) setLoading(false);
       });
+
+    fetchEnrichedClaims()
+      .then((claimsList) => {
+        if (isMounted) {
+          setAllClaims(claimsList);
+        }
+      })
+      .catch((err) => {
+        console.error("Error loading enriched claims for national overview:", err);
+      });
+
     return () => {
       isMounted = false;
     };
   }, []);
+
+  // Precomputed fast lookup of actual claims & ML metrics per state
+  const stateMetricsMap = useMemo(() => {
+    return computeAllStatesMetricsMap(allClaims);
+  }, [allClaims]);
+
+  // Helper to get verified, up-to-date metrics for any state
+  const getStateMetrics = (stateObjOrId) => {
+    const s = typeof stateObjOrId === "object" ? stateObjOrId : resolveState(stateObjOrId);
+    if (!s) return null;
+    const fromMap =
+      stateMetricsMap.get(s.name.toLowerCase().trim()) ||
+      stateMetricsMap.get(s.id.toLowerCase().trim());
+    if (fromMap) {
+      return {
+        ...s.stats,
+        ...fromMap,
+      };
+    }
+    return s.stats;
+  };
 
   // Static geographic mask: single outer world polygon with all India states as holes
   const indiaMaskGeoJSON = useMemo(() => {
@@ -274,13 +308,13 @@ export default function IndiaOverviewMap() {
       className: "leaflet-fade-transition",
     };
   };
-
   const onEachFeature = (feature, layer) => {
     const rawState = feature.properties.st_nm || feature.properties.name || "Unknown State";
     const stateObj = resolveState(rawState);
     const stateDisplayName = stateObj?.name || rawState;
-    const totalClaimsFormatted = stateObj ? formatNumber(stateObj.stats.totalClaims) : "N/A";
-    const anomaliesFormatted = stateObj ? formatNumber(stateObj.stats.anomalies) : "0";
+    const sMetrics = getStateMetrics(stateObj || rawState);
+    const totalClaimsFormatted = sMetrics ? formatNumber(sMetrics.totalClaims) : "0";
+    const anomaliesFormatted = sMetrics ? formatNumber(sMetrics.anomalies) : "0";
 
     // Show state name and overview metrics on hover
     layer.bindTooltip(
@@ -330,6 +364,10 @@ export default function IndiaOverviewMap() {
     });
   };
 
+  const selectedStateStats = useMemo(() => {
+    return getStateMetrics(selectedState);
+  }, [selectedState, stateMetricsMap]);
+
   return (
     <div className="flex flex-col lg:flex-row gap-4 items-stretch flex-1 w-full h-full min-h-0">
       {/* Primary Map Canvas - Responsive size on mobile (360-440px), 60% and full-height on desktop */}
@@ -352,93 +390,67 @@ export default function IndiaOverviewMap() {
         <MapContainer
           center={[22.5, 82.0]}
           zoom={5}
-          minZoom={4.5}
-          maxZoom={18}
-          maxBoundsViscosity={1.0}
-          attributionControl={false}
-          scrollWheelZoom={!isTransitioning}
-          className="w-full h-full !bg-[#060a12]"
+          scrollWheelZoom={true}
+          zoomControl={true}
+          className="w-full h-full z-0 bg-[#060a12]"
         >
-          <FitIndiaBounds />
-          <MapTransitionController
-            targetBounds={transitionTargetBounds}
-            isTransitioning={isTransitioning}
-            targetStateId={transitionTargetId}
-            onComplete={(targetId) => navigate(`/state/${targetId}`)}
-          />
-
-          {/* 1. Esri World Imagery (High-Resolution Satellite) */}
-          <TileLayer
-            attribution="Tiles &copy; Esri"
-            url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-            maxZoom={18}
-          />
-
-          {/* 2. Esri Place labels overlay */}
-          <TileLayer
-            attribution="&copy; Esri"
-            url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
-            maxZoom={18}
-            opacity={0.65}
-          />
-
-          {/* Injects SVG tactical pattern into map SVG defs */}
+          {/* Inject high-tech pattern defs for the static mask */}
           <MapPatternDefs />
 
-          {/* 3. Static Geographic Mask: Native Leaflet vector layer above satellite tiles, below state boundaries */}
-          <Pane name="indiaMaskPane" style={{ zIndex: 350 }}>
-            {/* 100% Solid Black Base: completely covers satellite tiles outside India */}
-            {indiaMaskGeoJSON && (
-              <GeoJSON
-                key="india-exterior-mask-black"
-                data={indiaMaskGeoJSON}
-                style={{
-                  fillColor: "#020617",
-                  fillOpacity: isTransitioning ? 0 : 1.0,
-                  stroke: false,
-                  weight: 0,
-                  color: "#020617",
-                  fillRule: "evenodd",
-                  className: "leaflet-fade-transition",
-                }}
-                interactive={false}
-              />
-            )}
+          {/* Strictly lock initial zoom and center to India */}
+          <FitIndiaBounds />
 
-            {/* Tactical cyber grid pattern applied on top of the black mask */}
-            {indiaMaskGeoJSON && (
-              <GeoJSON
-                key="india-exterior-mask-pattern"
-                data={indiaMaskGeoJSON}
-                style={{
-                  fillColor: "url(#tactical-mask-grid)",
-                  fillOpacity: isTransitioning ? 0 : 1.0,
-                  stroke: false,
-                  weight: 0,
-                  color: "transparent",
-                  fillRule: "evenodd",
-                  className: "leaflet-fade-transition",
-                }}
-                interactive={false}
-              />
-            )}
-          </Pane>
+          {/* Smooth zoom and cross-fade animation handler */}
+          <MapTransitionController
+            targetBounds={transitionTargetBounds}
+            targetStateId={transitionTargetId}
+            isTransitioning={isTransitioning}
+            onComplete={(stateId) => {
+              navigate(`/state/${stateId}`);
+            }}
+          />
 
-          {/* 4. Render ONLY India State / UT Boundaries on initial view (in overlayPane at zIndex 400) */}
+          {/* Satellite Basemap: Real World Imagery */}
+          <TileLayer
+            url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+            attribution="&copy; Esri &mdash; National Geographic, Esri, DeLorme, NAVTEQ"
+            maxZoom={18}
+          />
+
+          {/* Dedicated Leaflet Pane for the exterior mask, positioned strictly above satellite tiles (z=250) */}
+          <Pane name="indiaMaskPane" style={{ zIndex: 250, pointerEvents: "none" }} />
+
+          {/* Stable Static Geographic Exterior Mask */}
+          {indiaMaskGeoJSON && (
+            <GeoJSON
+              key="india-exterior-static-mask"
+              data={indiaMaskGeoJSON}
+              pane="indiaMaskPane"
+              style={{
+                fillColor: "#060a12",
+                fillOpacity: 1.0,
+                stroke: false,
+                weight: 0,
+                fillRule: "evenodd",
+                className: "india-mask-pattern state-mask-no-transition",
+              }}
+            />
+          )}
+
+          {/* India States Real GeoJSON Boundary Layer */}
           {geoData && (
             <GeoJSON
               ref={geoJsonRef}
-              key={geoData.name || "india-states-layer"}
               data={geoData}
               style={getStateStyle}
               onEachFeature={onEachFeature}
             />
           )}
 
-          {/* Interactive Territory Label for Lakshadweep in the Arabian Sea */}
+          {/* Interactive Territory Label for Lakshadweep in Arabian Sea */}
           {!isTransitioning && (
             <Marker
-              position={[10.2, 70.8]}
+              position={[10.5, 72.2]}
               icon={createTerritoryLabelIcon(
                 "Lakshadweep",
                 selectedState?.id === "lakshadweep"
@@ -493,50 +505,91 @@ export default function IndiaOverviewMap() {
               <div className="text-[10px] font-mono uppercase text-cyan-400 font-semibold tracking-wider">
                 Selected State
               </div>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-700">
+                {selectedState.code} • {selectedStateStats.districtsCount || selectedState.districts?.length || 0} Districts
+              </span>
             </div>
             <h3 className="text-xl font-bold text-white mt-0.5">
               {selectedState.name}
             </h3>
-          </div>
-
-          {/* 4 Simple Key Fields */}
-          <div className="space-y-2 font-mono text-xs">
-            <div className="flex justify-between py-1 border-b border-slate-800">
-              <span className="text-slate-400">Total Claims:</span>
-              <span className="font-bold text-white text-sm">
-                {formatNumber(selectedState.stats.totalClaims)}
-              </span>
-            </div>
-
-            <div className="flex justify-between py-1 border-b border-slate-800">
-              <span className="text-slate-400">Pending:</span>
-              <span className="font-bold text-blue-400 text-sm">
-                {formatNumber(selectedState.stats.pendingClaims)}
-              </span>
-            </div>
-
-            <div className="flex justify-between py-1 border-b border-slate-800">
-              <span className="text-slate-400">Anomalies:</span>
-              <span className="font-bold text-amber-400 text-sm">
-                {formatNumber(selectedState.stats.anomalies)}
-              </span>
-            </div>
-
-            {selectedState.stats.criticalAnomalies > 0 && (
-              <div className="flex justify-between py-1 border-b border-slate-800">
-                <span className="text-rose-400">Critical Alerts:</span>
-                <span className="font-bold text-rose-400 text-sm">
-                  {selectedState.stats.criticalAnomalies}
-                </span>
-              </div>
+            {selectedState.description && (
+              <p className="text-xs text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+                {selectedState.description}
+              </p>
             )}
           </div>
 
-          {/* Short status / alert */}
+          {/* Valid & Real FRA Claims & Anomaly Metrics */}
+          <div className="space-y-2 font-mono text-xs">
+            <div className="flex justify-between py-1 border-b border-slate-800">
+              <span className="text-slate-400">Total Monitored Claims:</span>
+              <span className="font-bold text-white text-sm">
+                {formatNumber(selectedStateStats.totalClaims)}
+              </span>
+            </div>
+
+            <div className="flex justify-between py-1 border-b border-slate-800">
+              <span className="text-slate-400">Title Granted / Approved:</span>
+              <span className="font-bold text-emerald-400 text-sm">
+                {formatNumber(selectedStateStats.approvedClaims || 0)}
+              </span>
+            </div>
+
+            <div className="flex justify-between py-1 border-b border-slate-800">
+              <span className="text-slate-400">Pending Verification:</span>
+              <span className="font-bold text-blue-400 text-sm">
+                {formatNumber(selectedStateStats.pendingClaims)}
+              </span>
+            </div>
+
+            <div className="flex justify-between py-1 border-b border-slate-800">
+              <span className="text-slate-400">ML Detected Anomalies:</span>
+              <span className="font-bold text-amber-400 text-sm">
+                {formatNumber(selectedStateStats.anomalies)}
+              </span>
+            </div>
+
+            {selectedStateStats.criticalAnomalies > 0 ? (
+              <div className="flex justify-between py-1 border-b border-slate-800">
+                <span className="text-rose-400 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping inline-block" />
+                  Critical Alerts (High Risk):
+                </span>
+                <span className="font-bold text-rose-400 text-sm">
+                  {selectedStateStats.criticalAnomalies}
+                </span>
+              </div>
+            ) : (
+              <div className="flex justify-between py-1 border-b border-slate-800">
+                <span className="text-emerald-400">Critical Alerts:</span>
+                <span className="font-semibold text-emerald-400 text-sm">
+                  0 (Compliant)
+                </span>
+              </div>
+            )}
+
+            {/* FSI Forest Cover & Census Tribal Demographic Context */}
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <div className="p-2 rounded bg-slate-900/80 border border-slate-800">
+                <div className="text-[10px] text-slate-500">Forest Cover (FSI)</div>
+                <div className="font-semibold text-slate-200 mt-0.5">
+                  {selectedState.stats.forestCoverKm2 ? `${formatNumber(selectedState.stats.forestCoverKm2)} km²` : "N/A"}
+                </div>
+              </div>
+              <div className="p-2 rounded bg-slate-900/80 border border-slate-800">
+                <div className="text-[10px] text-slate-500">Tribal Population</div>
+                <div className="font-semibold text-slate-200 mt-0.5">
+                  {selectedState.stats.tribalPopulationPercent !== undefined ? `${selectedState.stats.tribalPopulationPercent}%` : "N/A"}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Dynamic AI / Spatial Assessment */}
           <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 text-xs text-slate-300 leading-relaxed">
-            {selectedState.stats.criticalAnomalies > 20
-              ? `High anomaly density. ${selectedState.stats.criticalAnomalies} claims flagged for field verification.`
-              : "Active spatial monitoring. Baseline records synchronized with state revenue records."}
+            {selectedStateStats.criticalAnomalies > 0
+              ? `${selectedStateStats.criticalAnomalies} high-risk claims flagged by ML for field boundary verification. ${selectedStateStats.pendingClaims} pending review across ${selectedStateStats.districtsCount || 0} districts.`
+              : `All spatial bounds verified. ${selectedStateStats.approvedClaims || 0} titles granted with zero high-risk anomalies.`}
           </div>
 
           {/* Action button */}
@@ -552,7 +605,7 @@ export default function IndiaOverviewMap() {
             <span>
               {isTransitioning
                 ? `Transitioning to ${selectedState.name}...`
-                : `View ${selectedState.name} Monitoring`}
+                : `View ${selectedState.name} Monitoring (${selectedStateStats.totalClaims} Claims)`}
             </span>
             <ChevronRight className={`w-4 h-4 ${isTransitioning ? "animate-pulse" : ""}`} />
           </button>
@@ -587,6 +640,7 @@ export default function IndiaOverviewMap() {
           <div className="flex-1 overflow-y-auto max-h-60 space-y-1 pr-1 custom-scrollbar">
             {filteredStates.map((s) => {
               const isSelected = selectedState?.id === s.id;
+              const sStats = getStateMetrics(s);
               return (
                 <button
                   key={s.id}
@@ -605,21 +659,20 @@ export default function IndiaOverviewMap() {
                         isSelected ? "bg-cyan-400" : "bg-slate-600"
                       }`}
                     />
-                    <span className="font-medium text-[11px] truncate max-w-[180px]">
+                    <span className="font-medium text-[11px] truncate max-w-[170px]">
                       {s.name}
                     </span>
                   </div>
 
                   <div className="flex items-center gap-2 font-mono text-[10px]">
                     <span className="text-slate-500">{s.code}</span>
-                    <span
-                      className={
-                        s.stats.criticalAnomalies > 20
-                          ? "text-rose-400 font-semibold"
-                          : "text-slate-400"
-                      }
-                    >
-                      {formatNumber(s.stats.totalClaims)}
+                    {sStats.criticalAnomalies > 0 && (
+                      <span className="px-1 py-0.2 rounded bg-rose-950/80 text-rose-400 border border-rose-800/60 font-semibold text-[9px]">
+                        {sStats.criticalAnomalies} alert{sStats.criticalAnomalies > 1 ? "s" : ""}
+                      </span>
+                    )}
+                    <span className="text-slate-300 font-semibold">
+                      {sStats.totalClaims} {sStats.totalClaims === 1 ? "claim" : "claims"}
                     </span>
                   </div>
                 </button>

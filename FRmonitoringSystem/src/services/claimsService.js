@@ -170,3 +170,100 @@ export function getDistrictsSummary(claims, stateNameOrId) {
 
   return Array.from(districtMap.values()).sort((a, b) => b.total - a.total);
 }
+
+/**
+ * Compute key FRA metrics from an array of claims for a given state.
+ */
+export function computeStateMetrics(stateClaims) {
+  if (!stateClaims || !stateClaims.length) {
+    return {
+      totalClaims: 0,
+      pendingClaims: 0,
+      approvedClaims: 0,
+      rejectedClaims: 0,
+      anomalies: 0,
+      criticalAnomalies: 0,
+      mediumAnomalies: 0,
+      lowAnomalies: 0,
+      districtsCount: 0,
+      totalAreaHa: 0,
+    };
+  }
+
+  let pending = 0;
+  let approved = 0;
+  let rejected = 0;
+  let anomalies = 0;
+  let high = 0;
+  let medium = 0;
+  let low = 0;
+  let totalArea = 0;
+  const districts = new Set();
+
+  for (const c of stateClaims) {
+    if (c.district) districts.add(c.district);
+    totalArea += Number(c.claimedArea ?? c.claimedAreaHa ?? 0);
+
+    const status = (c.status || "").toLowerCase();
+    if (
+      status.includes("pending") ||
+      status.includes("review") ||
+      status.includes("sdlc") ||
+      status.includes("gram")
+    ) {
+      pending++;
+    } else if (status.includes("title") || status.includes("approved")) {
+      approved++;
+    } else if (status.includes("reject")) {
+      rejected++;
+    }
+
+    if (c.predictedAnomaly || c.isAnomaly) {
+      anomalies++;
+    }
+
+    if (c.riskLevel === "HIGH") {
+      high++;
+    } else if (c.riskLevel === "MEDIUM") {
+      medium++;
+    } else {
+      low++;
+    }
+  }
+
+  return {
+    totalClaims: stateClaims.length,
+    pendingClaims: pending,
+    approvedClaims: approved,
+    rejectedClaims: rejected,
+    anomalies,
+    criticalAnomalies: high,
+    mediumAnomalies: medium,
+    lowAnomalies: low,
+    districtsCount: districts.size,
+    totalAreaHa: Number(totalArea.toFixed(1)),
+  };
+}
+
+/**
+ * Precompute a fast lookup map of metrics for all states.
+ */
+export function computeAllStatesMetricsMap(allClaims) {
+  const map = new Map();
+  if (!allClaims || !allClaims.length) return map;
+
+  const grouped = new Map();
+  for (const c of allClaims) {
+    const key = (c.state || "").toLowerCase().trim();
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key).push(c);
+  }
+
+  for (const [key, claims] of grouped) {
+    const metrics = computeStateMetrics(claims);
+    map.set(key, metrics);
+  }
+
+  return map;
+}
+

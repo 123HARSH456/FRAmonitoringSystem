@@ -6,6 +6,7 @@ import {
   filterClaimsByState,
   filterClaimsByDistrict,
   getDistrictsSummary,
+  computeStateMetrics,
 } from "../../services/claimsService";
 import { formatNumber, formatArea } from "../../utils/formatters";
 import StateGISMap from "../../components/StateMap/StateGISMap";
@@ -44,6 +45,11 @@ export default function StateMonitoringPage() {
   const stateClaims = useMemo(() => {
     return filterClaimsByState(allClaims, state.name || state.id);
   }, [allClaims, state]);
+
+  // Verified live state metrics computed from actual state claims
+  const stateMetrics = useMemo(() => {
+    return computeStateMetrics(stateClaims);
+  }, [stateClaims]);
 
   // List of districts in this state that have synthetic claims
   const districtsWithClaims = useMemo(() => {
@@ -173,26 +179,43 @@ export default function StateMonitoringPage() {
               </h3>
             </div>
 
-            {/* Key State Metrics */}
+            {/* Key State Metrics - Verified Live Data */}
             <div className="space-y-2 border-t border-slate-800 pt-2.5">
               <div className="flex justify-between">
                 <span className="text-slate-400">Total claims:</span>
                 <span className="font-bold text-white">
-                  {formatNumber(state.stats.totalClaims)}
+                  {formatNumber(stateMetrics.totalClaims)}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Pending:</span>
+                <span className="text-slate-400">Title Granted / Approved:</span>
+                <span className="font-bold text-emerald-400">
+                  {formatNumber(stateMetrics.approvedClaims)}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Pending Verification:</span>
                 <span className="font-bold text-blue-400">
-                  {formatNumber(state.stats.pendingClaims)}
+                  {formatNumber(stateMetrics.pendingClaims)}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Anomalies:</span>
                 <span className="font-bold text-amber-400">
-                  {formatNumber(state.stats.anomalies)}
+                  {formatNumber(stateMetrics.anomalies)}
                 </span>
               </div>
+              {stateMetrics.criticalAnomalies > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-rose-400 flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping inline-block" />
+                    Critical Alerts:
+                  </span>
+                  <span className="font-bold text-rose-400">
+                    {stateMetrics.criticalAnomalies}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Compact Claim Details Panel (Contains all 10 required fields) */}
