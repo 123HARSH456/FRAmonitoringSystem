@@ -15,7 +15,7 @@ export default function Header() {
           </div>
           <div>
             <span className="text-base font-bold tracking-tight text-white">
-              FRA
+              CANOPY
             </span>
           </div>
         </Link>
