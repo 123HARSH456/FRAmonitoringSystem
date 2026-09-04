@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { MapContainer, TileLayer, GeoJSON, Marker, useMap, Pane } from "react-leaflet";
+import { MapContainer, TileLayer, GeoJSON, useMap, Pane } from "react-leaflet";
 import L from "leaflet";
 import { STATES_DATA, resolveState } from "../../data/statesData";
 import { formatNumber } from "../../utils/formatters";
@@ -8,39 +8,7 @@ import { fetchIndiaGeoJSON, findStateFeature, fetchStateMasks } from "../../util
 import { fetchEnrichedClaims, computeAllStatesMetricsMap } from "../../services/claimsService";
 import { ChevronRight, Search } from "lucide-react";
 
-// Crisp territory label badge for island UTs
-function createTerritoryLabelIcon(name, isSelected) {
-  return L.divIcon({
-    className: "island-territory-label-icon",
-    html: `
-      <div style="
-        font-family: monospace;
-        font-size: 10px;
-        font-weight: 600;
-        letter-spacing: 0.04em;
-        color: ${isSelected ? "#DBAFA0" : "#c2a3b0"};
-        background: ${isSelected ? "rgba(112, 66, 100, 0.7)" : "rgba(36, 17, 32, 0.9)"};
-        border: 1px solid ${isSelected ? "#DBAFA0" : "rgba(187, 132, 147, 0.45)"};
-        border-radius: 4px;
-        padding: 2px 7px;
-        white-space: nowrap;
-        cursor: pointer;
-        box-shadow: ${isSelected ? "0 0 10px rgba(219, 175, 160, 0.5)" : "0 2px 6px rgba(0,0,0,0.5)"};
-        display: flex;
-        align-items: center;
-        gap: 5px;
-        transition: all 0.2s ease;
-      ">
-        <span style="width: 6px; height: 6px; border-radius: 50%; background-color: ${
-          isSelected ? "#DBAFA0" : "#BB8493"
-        }; display: inline-block;"></span>
-        <span>${name}</span>
-      </div>
-    `,
-    iconSize: [96, 22],
-    iconAnchor: [48, 11],
-  });
-}
+
 
 // Auto-fit bounds strictly to India on initial load
 function FitIndiaBounds() {
@@ -466,45 +434,7 @@ export default function IndiaOverviewMap() {
             />
           )}
 
-          {/* Interactive Territory Label for Lakshadweep in Arabian Sea */}
-          {!isTransitioning && (
-            <Marker
-              position={[10.5, 72.2]}
-              icon={createTerritoryLabelIcon(
-                "Lakshadweep",
-                selectedState?.id === "lakshadweep"
-              )}
-              eventHandlers={{
-                mouseover: () => {
-                  const state = resolveState("lakshadweep");
-                  if (state) setSelectedState(state);
-                },
-                click: () => {
-                  handleStateClick("lakshadweep");
-                },
-              }}
-            />
-          )}
 
-          {/* Interactive Territory Label for Andaman & Nicobar in Bay of Bengal */}
-          {!isTransitioning && (
-            <Marker
-              position={[11.5, 95.2]}
-              icon={createTerritoryLabelIcon(
-                "Andaman & Nicobar",
-                selectedState?.id === "andaman_and_nicobar_islands"
-              )}
-              eventHandlers={{
-                mouseover: () => {
-                  const state = resolveState("andaman_and_nicobar_islands");
-                  if (state) setSelectedState(state);
-                },
-                click: () => {
-                  handleStateClick("andaman_and_nicobar_islands");
-                },
-              }}
-            />
-          )}
         </MapContainer>
 
         {/* Minimal helper prompt */}

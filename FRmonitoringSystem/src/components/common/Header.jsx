@@ -1,25 +1,28 @@
 import { ArrowLeft } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
-import canopyLogo from "../../assets/canopy-logo.jpg";
 
 export default function Header() {
   const location = useLocation();
   const isStateView = location.pathname.startsWith("/state");
 
   return (
-    <header className="bg-[#180b15]/95 backdrop-blur-md border-b border-[#49243E]/80 px-3 lg:px-5 py-2.5">
+    <header className="bg-[#180b15]/95 backdrop-blur-md border-b border-[#49243E]/80 px-3 lg:px-5 py-2">
       <div className="w-full flex items-center justify-between">
         {/* Simple Branding */}
-        <Link to="/" className="flex items-center gap-2.5 group">
-          <div className="w-9 h-9 rounded-full overflow-hidden border border-[#BB8493]/50 shadow-sm shadow-black/50 flex items-center justify-center bg-[#241120] group-hover:border-[#DBAFA0] group-hover:ring-2 group-hover:ring-[#DBAFA0]/40 transition-all shrink-0">
+        <Link to="/" className="flex items-center gap-3 group">
+          <div className="flex items-center justify-center shrink-0">
             <img
-              src={canopyLogo}
-              alt="CANOPY Logo"
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+              srcSet="/Gemini_Generated_Image_r9ps5lr9ps5lr9ps-400w.webp 400w, /Gemini_Generated_Image_r9ps5lr9ps5lr9ps-600w.webp 600w, /Gemini_Generated_Image_r9ps5lr9ps5lr9ps-800w.webp 800w, /Gemini_Generated_Image_r9ps5lr9ps5lr9ps-1000w.webp 1000w, /Gemini_Generated_Image_r9ps5lr9ps5lr9ps-1200w.webp 1200w"
+              sizes="(max-width: 400px) 400px, (max-width: 600px) 600px, (max-width: 800px) 800px, (max-width: 1000px) 1000px, (min-width: 1001px) 1200px"
+              src="/Gemini_Generated_Image_r9ps5lr9ps5lr9ps.png"
+              alt="CANOPY Emblem"
+              width="1533"
+              height="1771"
+              className="h-10 sm:h-11 w-auto max-w-[48px] object-contain drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)] group-hover:scale-105 transition-transform duration-200"
             />
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="text-base font-bold tracking-tight text-white group-hover:text-[#DBAFA0] transition-colors">
+            <span className="text-base font-bold tracking-tight text-white group-hover:text-[#DBAFA0] transition-colors leading-tight">
               CANOPY
             </span>
             <span className="text-[11px] text-[#c2a3b0] font-mono hidden sm:inline tracking-wider">

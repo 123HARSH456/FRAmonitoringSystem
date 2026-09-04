@@ -631,12 +631,12 @@ export default function StateGISMap({
         })}
       </MapContainer>
 
-      {/* State & District Header Badge */}
-      <div className="absolute top-3 left-3 z-[1000] bg-[#180b15]/85 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-[#49243E]/80 text-[11px] font-mono text-slate-200 flex items-center gap-2 shadow-lg">
-        <span className="w-2 h-2 rounded-full bg-[#DBAFA0] animate-pulse" />
-        <span className="font-semibold text-white">{state.name}</span>
-        <span className="text-[#c2a3b0]">/</span>
-        <span className="text-[#DBAFA0]">
+      {/* State & District Header Badge - shifted to left-14 to prevent overlapping the Leaflet plus zoom button */}
+      <div className="absolute top-3 left-14 sm:left-14 z-[1000] bg-[#180b15]/90 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-[#49243E]/80 text-[11px] font-mono text-slate-200 flex items-center gap-2 shadow-lg max-w-[calc(100%-72px)] truncate">
+        <span className="w-2 h-2 rounded-full bg-[#DBAFA0] animate-pulse shrink-0" />
+        <span className="font-semibold text-white shrink-0">{state.name}</span>
+        <span className="text-[#c2a3b0] shrink-0">/</span>
+        <span className="text-[#DBAFA0] truncate">
           {selectedDistrict
             ? `${selectedDistrict} (${selectedDistrictClaimsCount} claims · ${visibleClaims.length} state total)`
             : `All Districts (${visibleClaims.length} claims)`}
