@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { MapContainer, GeoJSON, Marker, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, GeoJSON, Marker, useMap } from "react-leaflet";
 import L from "leaflet";
 import { STATES_DATA, resolveState } from "../../data/statesData";
 import { formatNumber } from "../../utils/formatters";
-import { fetchIndiaGeoJSON } from "../../utils/geoCache";
+import { fetchIndiaGeoJSON, findStateFeature } from "../../utils/geoCache";
 import { ChevronRight, Search } from "lucide-react";
 
 // Crisp territory label badge for island UTs
@@ -41,8 +41,8 @@ function createTerritoryLabelIcon(name, isSelected) {
   });
 }
 
-// Auto-fit bounds strictly to India and prevent panning outside
-function FitIndiaBounds({ activeState }) {
+// Auto-fit bounds strictly to India on initial load
+function FitIndiaBounds() {
   const map = useMap();
 
   useEffect(() => {
@@ -58,11 +58,37 @@ function FitIndiaBounds({ activeState }) {
     ]);
   }, [map]);
 
+  return null;
+}
+
+// Controls smooth zoom/fly into target state bounds and layer cross-fade timing
+function MapTransitionController({
+  targetBounds,
+  isTransitioning,
+  targetStateId,
+  onComplete,
+}) {
+  const map = useMap();
+
   useEffect(() => {
-    if (activeState && activeState.center && activeState.id !== "india") {
-      // Optional subtle pan to active state
+    if (isTransitioning && targetBounds && map) {
+      map.setMaxBounds(null);
+      map.setMinZoom(3);
+      map.setMaxZoom(18);
+
+      map.flyToBounds(targetBounds, {
+        padding: [28, 28],
+        duration: 1.0,
+        easeLinearity: 0.25,
+      });
+
+      const timer = setTimeout(() => {
+        onComplete(targetStateId);
+      }, 950);
+
+      return () => clearTimeout(timer);
     }
-  }, [activeState, map]);
+  }, [isTransitioning, targetBounds, targetStateId, map, onComplete]);
 
   return null;
 }
@@ -72,6 +98,9 @@ export default function IndiaOverviewMap() {
   const [loading, setLoading] = useState(true);
   const [selectedState, setSelectedState] = useState(resolveState("madhya_pradesh"));
   const [searchFilter, setSearchFilter] = useState("");
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [transitionTargetId, setTransitionTargetId] = useState(null);
+  const [transitionTargetBounds, setTransitionTargetBounds] = useState(null);
   const geoJsonRef = useRef(null);
   const navigate = useNavigate();
 
@@ -93,8 +122,35 @@ export default function IndiaOverviewMap() {
     };
   }, []);
 
-  const handleStateClick = (stateId) => {
-    navigate(`/state/${stateId}`);
+  const handleStateClick = (stateId, explicitBounds = null) => {
+    if (isTransitioning) return;
+
+    const stateObj = resolveState(stateId);
+    let bounds = explicitBounds;
+
+    if (!bounds || !bounds.isValid || !bounds.isValid()) {
+      if (geoData) {
+        const feat = findStateFeature(geoData, stateObj || { id: stateId });
+        if (feat) {
+          const tempLayer = L.geoJSON(feat);
+          bounds = tempLayer.getBounds();
+        }
+      }
+    }
+
+    if ((!bounds || !bounds.isValid()) && stateObj?.bounds) {
+      bounds = L.latLngBounds(stateObj.bounds);
+    }
+
+    if (stateObj) setSelectedState(stateObj);
+    setTransitionTargetId(stateId);
+
+    if (bounds && bounds.isValid()) {
+      setIsTransitioning(true);
+      setTransitionTargetBounds(bounds);
+    } else {
+      navigate(`/state/${stateId}`);
+    }
   };
 
   const filteredStates = STATES_DATA.filter(
@@ -106,13 +162,28 @@ export default function IndiaOverviewMap() {
   const getStateStyle = (feature) => {
     const rawState = feature.properties.st_nm || feature.properties.name || "";
     const stateObj = resolveState(rawState);
-    const isSelected = selectedState && stateObj && selectedState.id === stateObj.id;
+    const isTarget = transitionTargetId
+      ? stateObj?.id === transitionTargetId
+      : selectedState && stateObj && selectedState.id === stateObj.id;
+
+    if (isTransitioning) {
+      return {
+        fillColor: isTarget ? "#0891b2" : "#081528",
+        fillOpacity: isTarget ? 0.2 : 0.0,
+        color: isTarget ? "#38bdf8" : "rgba(56, 189, 248, 0.0)",
+        weight: isTarget ? 2.5 : 0.5,
+        opacity: isTarget ? 0.95 : 0.0,
+        className: "leaflet-fade-transition",
+      };
+    }
 
     return {
-      fillColor: isSelected ? "#0891b2" : "#0e1c2e",
-      fillOpacity: isSelected ? 0.85 : 0.65,
-      color: isSelected ? "#38bdf8" : "rgba(56, 189, 248, 0.45)",
-      weight: isSelected ? 2.2 : 1.1,
+      fillColor: isTarget ? "#0891b2" : "#0e1c2e",
+      fillOpacity: isTarget ? 0.75 : 0.5,
+      color: isTarget ? "#38bdf8" : "rgba(56, 189, 248, 0.45)",
+      weight: isTarget ? 2.2 : 1.1,
+      opacity: 0.9,
+      className: "leaflet-fade-transition",
     };
   };
 
@@ -142,6 +213,7 @@ export default function IndiaOverviewMap() {
 
     layer.on({
       mouseover: (e) => {
+        if (isTransitioning) return;
         const l = e.target;
         l.setStyle({
           weight: 2.4,
@@ -155,12 +227,16 @@ export default function IndiaOverviewMap() {
         }
       },
       mouseout: (e) => {
+        if (isTransitioning) return;
         const l = e.target;
         l.setStyle(getStateStyle(feature));
       },
-      click: () => {
+      click: (e) => {
+        if (isTransitioning) return;
+        const l = e.target;
+        const bounds = l?.getBounds ? l.getBounds() : null;
         if (stateObj) {
-          handleStateClick(stateObj.id);
+          handleStateClick(stateObj.id, bounds);
         }
       },
     });
@@ -172,7 +248,7 @@ export default function IndiaOverviewMap() {
       <div className="w-full lg:w-[60%] h-[360px] sm:h-[440px] lg:h-full min-h-[320px] sm:min-h-[420px] lg:min-h-0 relative rounded-xl overflow-hidden border border-slate-800 bg-[#050912] shadow-2xl flex-shrink-0">
         {/* Subtle grid background only for aesthetics */}
         <div
-          className="absolute inset-0 opacity-10 pointer-events-none"
+          className="absolute inset-0 opacity-10 pointer-events-none z-[400]"
           style={{
             backgroundImage: "radial-gradient(#38bdf8 1px, transparent 1px)",
             backgroundSize: "28px 28px",
@@ -189,13 +265,34 @@ export default function IndiaOverviewMap() {
           center={[22.5, 82.0]}
           zoom={5}
           minZoom={4.5}
-          maxZoom={8}
+          maxZoom={18}
           maxBoundsViscosity={1.0}
           attributionControl={false}
-          scrollWheelZoom={true}
-          className="w-full h-full !bg-transparent"
+          scrollWheelZoom={!isTransitioning}
+          className="w-full h-full !bg-[#060a12]"
         >
-          <FitIndiaBounds activeState={selectedState} />
+          <FitIndiaBounds />
+          <MapTransitionController
+            targetBounds={transitionTargetBounds}
+            isTransitioning={isTransitioning}
+            targetStateId={transitionTargetId}
+            onComplete={(targetId) => navigate(`/state/${targetId}`)}
+          />
+
+          {/* 1. Esri World Imagery (High-Resolution Satellite) */}
+          <TileLayer
+            attribution="Tiles &copy; Esri"
+            url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+            maxZoom={18}
+          />
+
+          {/* 2. Esri Place labels overlay */}
+          <TileLayer
+            attribution="&copy; Esri"
+            url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
+            maxZoom={18}
+            opacity={0.65}
+          />
 
           {/* Render ONLY India State / UT Boundaries on initial view */}
           {geoData && (
@@ -209,46 +306,52 @@ export default function IndiaOverviewMap() {
           )}
 
           {/* Interactive Territory Label for Lakshadweep in the Arabian Sea */}
-          <Marker
-            position={[10.2, 70.8]}
-            icon={createTerritoryLabelIcon(
-              "Lakshadweep",
-              selectedState?.id === "lakshadweep"
-            )}
-            eventHandlers={{
-              mouseover: () => {
-                const state = resolveState("lakshadweep");
-                if (state) setSelectedState(state);
-              },
-              click: () => {
-                handleStateClick("lakshadweep");
-              },
-            }}
-          />
+          {!isTransitioning && (
+            <Marker
+              position={[10.2, 70.8]}
+              icon={createTerritoryLabelIcon(
+                "Lakshadweep",
+                selectedState?.id === "lakshadweep"
+              )}
+              eventHandlers={{
+                mouseover: () => {
+                  const state = resolveState("lakshadweep");
+                  if (state) setSelectedState(state);
+                },
+                click: () => {
+                  handleStateClick("lakshadweep");
+                },
+              }}
+            />
+          )}
 
           {/* Interactive Territory Label for Andaman & Nicobar in Bay of Bengal */}
-          <Marker
-            position={[11.5, 95.2]}
-            icon={createTerritoryLabelIcon(
-              "Andaman & Nicobar",
-              selectedState?.id === "andaman_and_nicobar_islands"
-            )}
-            eventHandlers={{
-              mouseover: () => {
-                const state = resolveState("andaman_and_nicobar_islands");
-                if (state) setSelectedState(state);
-              },
-              click: () => {
-                handleStateClick("andaman_and_nicobar_islands");
-              },
-            }}
-          />
+          {!isTransitioning && (
+            <Marker
+              position={[11.5, 95.2]}
+              icon={createTerritoryLabelIcon(
+                "Andaman & Nicobar",
+                selectedState?.id === "andaman_and_nicobar_islands"
+              )}
+              eventHandlers={{
+                mouseover: () => {
+                  const state = resolveState("andaman_and_nicobar_islands");
+                  if (state) setSelectedState(state);
+                },
+                click: () => {
+                  handleStateClick("andaman_and_nicobar_islands");
+                },
+              }}
+            />
+          )}
         </MapContainer>
 
         {/* Minimal helper prompt */}
-        <div className="absolute bottom-3 left-3 z-[1000] bg-slate-950/85 backdrop-blur-sm px-3 py-1.5 rounded border border-slate-800 text-[11px] font-mono text-slate-400">
-          Hover a state to view details • Click to enter state view
-        </div>
+        {!isTransitioning && (
+          <div className="absolute bottom-3 left-3 z-[1000] bg-slate-950/85 backdrop-blur-sm px-3 py-1.5 rounded border border-slate-800 text-[11px] font-mono text-slate-400">
+            Hover a state to view details • Click to enter state view
+          </div>
+        )}
       </div>
 
       {/* Contextual Information Panel - 40% width with scrollable All-India State Jump */}
@@ -309,10 +412,19 @@ export default function IndiaOverviewMap() {
           {/* Action button */}
           <button
             onClick={() => handleStateClick(selectedState.id)}
-            className="w-full py-2.5 px-3 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-[0_0_15px_rgba(6,182,212,0.3)]"
+            disabled={isTransitioning}
+            className={`w-full py-2.5 px-3 rounded-lg font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-[0_0_15px_rgba(6,182,212,0.3)] ${
+              isTransitioning
+                ? "bg-cyan-600/70 text-white cursor-wait"
+                : "bg-cyan-500 hover:bg-cyan-400 text-slate-950"
+            }`}
           >
-            <span>View {selectedState.name} Monitoring</span>
-            <ChevronRight className="w-4 h-4" />
+            <span>
+              {isTransitioning
+                ? `Transitioning to ${selectedState.name}...`
+                : `View ${selectedState.name} Monitoring`}
+            </span>
+            <ChevronRight className={`w-4 h-4 ${isTransitioning ? "animate-pulse" : ""}`} />
           </button>
         </div>
 

@@ -123,3 +123,12 @@ body {
 .pulse-critical-marker {
   animation: pulse-critical 2s infinite ease-in-out;
 }
+
+/* Smooth SVG path fade transitions for Leaflet layers */
+path.leaflet-fade-transition {
+  transition: opacity 0.75s ease, fill-opacity 0.75s ease, stroke-opacity 0.75s ease, stroke 0.75s ease;
+}
+
+path.district-fade-in {
+  transition: opacity 0.55s ease, fill-opacity 0.55s ease, stroke-opacity 0.55s ease;
+}

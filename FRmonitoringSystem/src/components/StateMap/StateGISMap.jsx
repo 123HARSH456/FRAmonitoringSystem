@@ -6,7 +6,6 @@ import {
   fetchIndiaGeoJSON,
   fetchDistrictsGeoJSON,
   findStateFeature,
-  createInvertedMask,
   getDistrictsForState,
   formatDistrictName,
 } from "../../utils/geoCache";
@@ -24,7 +23,7 @@ function MapController({ stateFeature, state }) {
       const geoLayer = L.geoJSON(stateFeature);
       const bounds = geoLayer.getBounds();
       if (bounds.isValid()) {
-        map.fitBounds(bounds, { padding: [28, 28], maxZoom: 12, animate: true });
+        map.fitBounds(bounds, { padding: [28, 28], maxZoom: 12, animate: false });
         map.setMaxBounds(bounds.pad(0.35));
         const currentZoom = map.getZoom();
         map.setMinZoom(Math.max(4, currentZoom - 1));
@@ -34,10 +33,10 @@ function MapController({ stateFeature, state }) {
 
     // Fallback if state feature not yet parsed
     if (state?.bounds) {
-      map.fitBounds(state.bounds, { padding: [28, 28], maxZoom: 12, animate: true });
+      map.fitBounds(state.bounds, { padding: [28, 28], maxZoom: 12, animate: false });
       map.setMaxBounds(L.latLngBounds(state.bounds).pad(0.35));
     } else if (state?.center) {
-      map.setView(state.center, state.zoom || 7, { animate: true });
+      map.setView(state.center, state.zoom || 7, { animate: false });
     }
   }, [stateFeature, state, map]);
 
@@ -90,6 +89,7 @@ export default function StateGISMap({
   const [geoData, setGeoData] = useState(null);
   const [districtsData, setDistrictsData] = useState(null);
   const [loadingBoundary, setLoadingBoundary] = useState(true);
+  const [districtsLoaded, setDistrictsLoaded] = useState(false);
 
   // Load cached India States GeoJSON
   useEffect(() => {
@@ -102,7 +102,7 @@ export default function StateGISMap({
         }
       })
       .catch((err) => {
-        console.error("Error loading boundary for state GIS mask:", err);
+        console.error("Error loading boundary for state GIS:", err);
         if (isMounted) setLoadingBoundary(false);
       });
     return () => {
@@ -127,20 +127,25 @@ export default function StateGISMap({
     };
   }, []);
 
-  // Find exact GeoJSON feature for this state
+  // Find exact GeoJSON feature for this state (untouched real geometry)
   const stateFeature = useMemo(() => {
     return findStateFeature(geoData, state);
   }, [geoData, state]);
 
-  // Filter districts strictly for this state
+  // Filter districts strictly for this state (untouched real geometries from districts.geojson)
   const stateDistricts = useMemo(() => {
     return getDistrictsForState(districtsData, state);
   }, [districtsData, state]);
 
-  // Generate Inverted Mask (world box minus state hole)
-  const maskGeoJSON = useMemo(() => {
-    return createInvertedMask(stateFeature);
-  }, [stateFeature]);
+  // Smoothly fade in district boundaries once loaded
+  useEffect(() => {
+    if (stateDistricts && stateDistricts.features && stateDistricts.features.length > 0) {
+      const timer = setTimeout(() => {
+        setDistrictsLoaded(true);
+      }, 60);
+      return () => clearTimeout(timer);
+    }
+  }, [stateDistricts]);
 
   return (
     <div className="relative w-full h-[360px] sm:h-[440px] lg:h-full min-h-[320px] sm:min-h-[420px] lg:min-h-0 rounded-xl overflow-hidden border border-slate-800 bg-[#060a12] shadow-2xl">
@@ -155,7 +160,7 @@ export default function StateGISMap({
 
       {loadingBoundary && (
         <div className="absolute inset-0 z-[1500] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center text-cyan-400 font-mono text-xs">
-          <span>Isolating {state.name} satellite boundary...</span>
+          <span>Loading {state.name} satellite boundary &amp; districts...</span>
         </div>
       )}
 
@@ -182,24 +187,7 @@ export default function StateGISMap({
           opacity={0.65}
         />
 
-        {/* 3. Inverted Mask: Solid #060a12 polygon covering everything OUTSIDE state borders */}
-        {maskGeoJSON && (
-          <GeoJSON
-            key={`state-mask-${state.id}`}
-            data={maskGeoJSON}
-            style={{
-              fillColor: "#060a12",
-              fillOpacity: 1.0,
-              stroke: false,
-              weight: 0,
-              color: "#060a12",
-              fillRule: "evenodd",
-            }}
-            interactive={false}
-          />
-        )}
-
-        {/* 4. State Perimeter Border */}
+        {/* 3. Authentic State Perimeter Border (Real GeoJSON, no morphing) */}
         {stateFeature && (
           <GeoJSON
             key={`state-border-${state.id}`}
@@ -214,7 +202,7 @@ export default function StateGISMap({
           />
         )}
 
-        {/* 5. District Boundaries Layer: Click a district to select it */}
+        {/* 4. District Boundaries Layer: Exactly as in districts.geojson with smooth fade-in */}
         {stateDistricts && (
           <GeoJSON
             key={`districts-${state.id}-${selectedDistrict || "none"}`}
@@ -230,10 +218,12 @@ export default function StateGISMap({
                 selectedDistrict.toLowerCase() === rawDist.toLowerCase();
 
               return {
-                fillColor: isDistSelected ? "#0891b2" : "#0891b2",
-                fillOpacity: isDistSelected ? 0.22 : 0.04,
-                color: isDistSelected ? "#38bdf8" : "rgba(56, 189, 248, 0.35)",
+                fillColor: "#0891b2",
+                fillOpacity: districtsLoaded ? (isDistSelected ? 0.25 : 0.05) : 0,
+                color: isDistSelected ? "#38bdf8" : "rgba(56, 189, 248, 0.4)",
                 weight: isDistSelected ? 2.5 : 1.0,
+                opacity: districtsLoaded ? 0.95 : 0,
+                className: "district-fade-in",
               };
             }}
             onEachFeature={(feature, layer) => {
@@ -272,10 +262,11 @@ export default function StateGISMap({
                 mouseout: (e) => {
                   const l = e.target;
                   l.setStyle({
-                    fillColor: isDistSelected ? "#0891b2" : "#0891b2",
-                    fillOpacity: isDistSelected ? 0.22 : 0.04,
-                    color: isDistSelected ? "#38bdf8" : "rgba(56, 189, 248, 0.35)",
+                    fillColor: "#0891b2",
+                    fillOpacity: isDistSelected ? 0.25 : 0.05,
+                    color: isDistSelected ? "#38bdf8" : "rgba(56, 189, 248, 0.4)",
                     weight: isDistSelected ? 2.5 : 1.0,
+                    opacity: 0.95,
                   });
                 },
                 click: (e) => {
