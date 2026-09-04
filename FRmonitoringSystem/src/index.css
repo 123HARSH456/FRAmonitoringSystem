@@ -179,3 +179,30 @@ path.district-fade-in {
   border: none !important;
 }
 
+/* Ensure the state exterior mask has zero transition so zooming/panning never creates flash or opacity delay */
+path.state-mask-no-transition {
+  transition: none !important;
+  animation: none !important;
+}
+
+.leaflet-statemaskpane-pane {
+  pointer-events: none !important;
+}
+
+/* Custom District Tooltip - sleek dark glassmorphic styling, non-blocking pointer events */
+.custom-leaflet-tooltip {
+  background: rgba(15, 23, 42, 0.92) !important;
+  border: 1px solid rgba(56, 189, 248, 0.45) !important;
+  border-radius: 6px !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6) !important;
+  backdrop-filter: blur(8px) !important;
+  padding: 5px 9px !important;
+  pointer-events: none !important;
+  transition: opacity 0.1s ease !important;
+}
+
+.custom-leaflet-tooltip::before {
+  border-top-color: rgba(15, 23, 42, 0.92) !important;
+  border-bottom-color: rgba(15, 23, 42, 0.92) !important;
+}
+

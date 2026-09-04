@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, Fragment } from "react";
+import { useState, useEffect, useMemo, useRef, Fragment } from "react";
 import { MapContainer, TileLayer, Polygon, Marker, Popup, GeoJSON, useMap } from "react-leaflet";
 import L from "leaflet";
 import { formatArea } from "../../utils/formatters";
@@ -10,6 +10,112 @@ import {
   formatDistrictName,
 } from "../../utils/geoCache";
 import { filterClaimsByState, isClaimInDistrict } from "../../services/claimsService";
+
+// Native Leaflet vector layer for the outside-state mask.
+// Created ONCE when the selected state is loaded; never recreated on pan, zoom, or render.
+function StateExteriorMaskLayer({ stateFeature, stateId }) {
+  const map = useMap();
+  const layerRef = useRef(null);
+
+  useEffect(() => {
+    if (!map || !stateFeature || !stateFeature.geometry) return;
+
+    // Remove previous mask layer if switching states
+    if (layerRef.current) {
+      try {
+        map.removeLayer(layerRef.current);
+      } catch (e) {
+        // ignore
+      }
+      layerRef.current = null;
+    }
+
+    // 1. Dedicated pane positioned strictly above satellite tiles (200) and below district vectors (400)
+    let pane = map.getPane("stateMaskPane");
+    if (!pane) {
+      pane = map.createPane("stateMaskPane");
+      pane.style.zIndex = "350";
+      pane.style.pointerEvents = "none";
+    }
+
+    // 2. High-padding SVG renderer (2.5x viewport) so dragging and zoom-out never reveal canvas edges
+    const maskRenderer = L.svg({
+      pane: "stateMaskPane",
+      padding: 2.5,
+    });
+
+    // 3. World outer boundary
+    const worldOuterRing = [
+      [-180, 85.051129],
+      [180, 85.051129],
+      [180, -85.051129],
+      [-180, -85.051129],
+      [-180, 85.051129],
+    ];
+
+    // 4. Extract exact state boundary rings as holes
+    const holes = [];
+    const { type, coordinates } = stateFeature.geometry;
+
+    if (type === "Polygon") {
+      if (coordinates) {
+        coordinates.forEach((ring) => {
+          if (ring && ring.length > 0) holes.push(ring);
+        });
+      }
+    } else if (type === "MultiPolygon") {
+      if (coordinates) {
+        coordinates.forEach((poly) => {
+          if (poly && poly[0]) {
+            holes.push(poly[0]);
+          }
+        });
+      }
+    }
+
+    if (holes.length === 0) return;
+
+    const maskGeoJSON = {
+      type: "Feature",
+      properties: { name: `state-exterior-mask-${stateId || "active"}` },
+      geometry: {
+        type: "Polygon",
+        coordinates: [worldOuterRing, ...holes],
+      },
+    };
+
+    // 5. Stable native Leaflet GeoJSON layer created once
+    const maskLayer = L.geoJSON(maskGeoJSON, {
+      renderer: maskRenderer,
+      interactive: false,
+      style: {
+        fillColor: "#060a12",
+        fillOpacity: 1.0,
+        stroke: false,
+        weight: 0,
+        color: "#060a12",
+        fillRule: "evenodd",
+        className: "state-mask-no-transition",
+      },
+    });
+
+    maskLayer.addTo(map);
+    layerRef.current = maskLayer;
+
+    return () => {
+      if (layerRef.current && map) {
+        try {
+          map.removeLayer(layerRef.current);
+        } catch (e) {
+          // ignore
+        }
+        layerRef.current = null;
+      }
+    };
+  }, [map, stateFeature, stateId]);
+
+  return null;
+}
 
 // Helper for matching district names with parenthetical aliases
 function isDistrictMatch(d1, d2) {
@@ -55,6 +161,81 @@ function MapController({ stateFeature, state }) {
       map.setView(state.center, state.zoom || 7, { animate: false });
     }
   }, [stateFeature, state, map]);
+
+  return null;
+}
+
+// DistrictTooltipController: guarantees at most ONE active district tooltip and closes on drag/zoom/click
+function DistrictTooltipController() {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!map) return;
+
+    const closeAll = () => {
+      map._isDraggingMap = true;
+      if (map._activeDistrictLayer) {
+        try {
+          map._activeDistrictLayer.closeTooltip();
+        } catch (e) {
+          // ignore
+        }
+        map._activeDistrictLayer = null;
+      }
+      try {
+        map.closeTooltip();
+      } catch (e) {
+        // ignore
+      }
+      map.eachLayer((layer) => {
+        if (layer && typeof layer.closeTooltip === "function") {
+          try {
+            layer.closeTooltip();
+          } catch (e) {
+            // ignore
+          }
+        }
+      });
+    };
+
+    const onMoveEnd = () => {
+      map._isDraggingMap = false;
+      if (map._activeDistrictLayer) {
+        try {
+          map._activeDistrictLayer.closeTooltip();
+        } catch (e) {
+          // ignore
+        }
+        map._activeDistrictLayer = null;
+      }
+      try {
+        map.closeTooltip();
+      } catch (e) {
+        // ignore
+      }
+    };
+
+    const container = map.getContainer();
+    const onMouseLeave = () => {
+      closeAll();
+      map._isDraggingMap = false;
+    };
+
+    map.on("dragstart movestart zoomstart", closeAll);
+    map.on("dragend moveend zoomend", onMoveEnd);
+    if (container) {
+      container.addEventListener("mouseleave", onMouseLeave);
+    }
+
+    return () => {
+      map.off("dragstart movestart zoomstart", closeAll);
+      map.off("dragend moveend zoomend", onMoveEnd);
+      if (container) {
+        container.removeEventListener("mouseleave", onMouseLeave);
+      }
+      closeAll();
+    };
+  }, [map]);
 
   return null;
 }
@@ -211,15 +392,6 @@ export default function StateGISMap({
 
   return (
     <div className="relative w-full h-[360px] sm:h-[440px] lg:h-full min-h-[320px] sm:min-h-[420px] lg:min-h-0 rounded-xl overflow-hidden border border-slate-800 bg-[#060a12] shadow-2xl">
-      {/* Background radial pattern */}
-      <div
-        className="absolute inset-0 opacity-10 pointer-events-none z-[400]"
-        style={{
-          backgroundImage: "radial-gradient(#38bdf8 1px, transparent 1px)",
-          backgroundSize: "28px 28px",
-        }}
-      />
-
       {loadingBoundary && (
         <div className="absolute inset-0 z-[1500] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center text-cyan-400 font-mono text-xs">
           <span>Loading {state.name} satellite boundary &amp; districts...</span>
@@ -233,6 +405,7 @@ export default function StateGISMap({
         className="w-full h-full !bg-[#060a12]"
       >
         <MapController stateFeature={stateFeature} state={state} />
+        <DistrictTooltipController />
 
         {/* 1. Esri World Imagery (High-Resolution Satellite) */}
         <TileLayer
@@ -249,20 +422,8 @@ export default function StateGISMap({
           opacity={0.65}
         />
 
-        {/* 3. Authentic State Perimeter Border (Real GeoJSON, no morphing) */}
-        {stateFeature && (
-          <GeoJSON
-            key={`state-border-${state.id}`}
-            data={stateFeature}
-            style={{
-              fill: false,
-              color: "#38bdf8",
-              weight: 2.5,
-              opacity: 0.95,
-            }}
-            interactive={false}
-          />
-        )}
+        {/* 3. Stable Native Leaflet Mask: Created ONCE, zero flicker during drag/zoom */}
+        <StateExteriorMaskLayer stateFeature={stateFeature} stateId={state?.id} />
 
         {/* 4. District Boundaries Layer: Exactly as in districts.geojson with visual selection highlight */}
         {stateDistricts && (
@@ -295,7 +456,7 @@ export default function StateGISMap({
               const districtName = formatDistrictName(rawDist);
               const isDistSelected = isDistrictMatch(selectedDistrict, rawDist);
 
-              // Show district name and action prompt on hover
+              // Single active tooltip: opens only on hover, closed immediately on mouseout, drag, or click
               layer.bindTooltip(
                 `<div style="font-family: monospace; font-size: 11px; color: #f8fafc; line-height: 1.3;">
                   <strong style="color: #38bdf8; font-size: 12px;">${districtName}</strong>
@@ -303,12 +464,37 @@ export default function StateGISMap({
                     ${isDistSelected ? "Currently active district" : "Click to select & highlight claims"}
                   </div>
                 </div>`,
-                { sticky: true, className: "custom-leaflet-tooltip" }
+                {
+                  sticky: true,
+                  className: "custom-leaflet-tooltip",
+                  opacity: 0.95,
+                }
               );
 
               layer.on({
                 mouseover: (e) => {
                   const l = e.target;
+                  const mapInstance = l._map;
+                  // If map is being dragged/moved, NEVER open tooltips
+                  if (!mapInstance || mapInstance._isDraggingMap) {
+                    try {
+                      l.closeTooltip();
+                    } catch (err) {
+                      // ignore
+                    }
+                    return;
+                  }
+
+                  // Strictly ensure only ONE active district tooltip across the entire map
+                  if (mapInstance._activeDistrictLayer && mapInstance._activeDistrictLayer !== l) {
+                    try {
+                      mapInstance._activeDistrictLayer.closeTooltip();
+                    } catch (err) {
+                      // ignore
+                    }
+                  }
+                  mapInstance._activeDistrictLayer = l;
+
                   l.setStyle({
                     weight: 2.4,
                     color: "#38bdf8",
@@ -316,9 +502,23 @@ export default function StateGISMap({
                     fillOpacity: isDistSelected ? 0.3 : 0.16,
                   });
                   l.bringToFront();
+                  try {
+                    l.openTooltip(e.latlng);
+                  } catch (err) {
+                    // ignore
+                  }
                 },
                 mouseout: (e) => {
                   const l = e.target;
+                  try {
+                    l.closeTooltip();
+                  } catch (err) {
+                    // ignore
+                  }
+                  const mapInstance = l._map;
+                  if (mapInstance && mapInstance._activeDistrictLayer === l) {
+                    mapInstance._activeDistrictLayer = null;
+                  }
                   l.setStyle({
                     fillColor: "#0891b2",
                     fillOpacity: isDistSelected ? 0.25 : 0.05,
@@ -328,14 +528,36 @@ export default function StateGISMap({
                   });
                 },
                 click: (e) => {
+                  const l = e.target;
+                  // Immediately close tooltip so it never remains permanently open
+                  try {
+                    l.closeTooltip();
+                  } catch (err) {
+                    // ignore
+                  }
+                  const mapInstance = l._map || e.sourceTarget?._map;
+                  if (mapInstance) {
+                    if (mapInstance._activeDistrictLayer) {
+                      try {
+                        mapInstance._activeDistrictLayer.closeTooltip();
+                      } catch (err) {
+                        // ignore
+                      }
+                      mapInstance._activeDistrictLayer = null;
+                    }
+                    try {
+                      mapInstance.closeTooltip();
+                    } catch (err) {
+                      // ignore
+                    }
+                  }
+
                   if (onSelectDistrict) {
                     onSelectDistrict(rawDist);
                   }
                   try {
-                    const layer = e.target;
-                    const mapInstance = layer?._map || e.sourceTarget?._map;
-                    if (layer && layer.getBounds && mapInstance) {
-                      const bounds = layer.getBounds();
+                    if (l && l.getBounds && mapInstance) {
+                      const bounds = l.getBounds();
                       if (bounds && bounds.isValid && bounds.isValid()) {
                         mapInstance.fitBounds(bounds, { padding: [28, 28], maxZoom: 13, animate: true });
                       }
