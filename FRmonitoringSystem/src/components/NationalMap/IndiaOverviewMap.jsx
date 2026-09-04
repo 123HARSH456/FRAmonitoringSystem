@@ -6,27 +6,103 @@ import { STATES_DATA, resolveState } from "../../data/statesData";
 import { formatNumber } from "../../utils/formatters";
 import { fetchIndiaGeoJSON, findStateFeature, fetchStateMasks } from "../../utils/geoCache";
 import { fetchEnrichedClaims, computeAllStatesMetricsMap } from "../../services/claimsService";
-import { ChevronRight, Search } from "lucide-react";
+import { ChevronRight, Search, Compass } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
+import StateBottomSheet from "./StateBottomSheet";
 
-
-
-// Auto-fit bounds strictly to India on initial load
+// Auto-fit bounds strictly to India on initial load with responsive mobile snug fitting
 function FitIndiaBounds() {
   const map = useMap();
 
   useEffect(() => {
-    // Bounds encompassing mainland, Lakshadweep (west) and Andaman (south/east)
-    const indiaBounds = [
-      [6.0, 67.5],
-      [37.4, 97.8],
-    ];
-    map.fitBounds(indiaBounds, { padding: [8, 8] });
-    map.setMaxBounds([
-      [4.0, 60.0],
-      [40.0, 103.0],
-    ]);
+    const fitIndia = () => {
+      const isMobile = window.innerWidth < 1024;
+      // On mobile (narrow screen & 46-48vh height), minimal padding ensures India fills the viewport without dead space
+      const padding = isMobile ? [4, 4] : [14, 14];
+      const indiaBounds = [
+        [6.5, 68.0],
+        [37.2, 97.5],
+      ];
+      map.fitBounds(indiaBounds, { padding, animate: false });
+      map.setMaxBounds([
+        [4.0, 60.0],
+        [40.0, 103.0],
+      ]);
+    };
+
+    fitIndia();
+    const handleResize = () => {
+      map.invalidateSize();
+      fitIndia();
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
   }, [map]);
+
+  return null;
+}
+
+// Tracks touch/drag interactions on map so dragging or pinch-zooming never triggers state selection
+function MapTouchController({ isDraggingRef }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!map) return;
+
+    const container = map.getContainer();
+    let startX = 0;
+    let startY = 0;
+    let hasMoved = false;
+    let resetTimer = null;
+
+    const onPointerDown = (e) => {
+      startX = e.clientX;
+      startY = e.clientY;
+      hasMoved = false;
+      if (resetTimer) {
+        clearTimeout(resetTimer);
+        resetTimer = null;
+      }
+      isDraggingRef.current = false;
+    };
+
+    const onPointerMove = (e) => {
+      // 16px threshold for touch on capacitive Android/iOS screens, 6px for desktop mouse
+      const threshold = e.pointerType === "touch" ? 16 : 6;
+      const dx = Math.abs(e.clientX - startX);
+      const dy = Math.abs(e.clientY - startY);
+      if (dx > threshold || dy > threshold) {
+        hasMoved = true;
+        isDraggingRef.current = true;
+      }
+    };
+
+    const onPointerUp = () => {
+      if (hasMoved) {
+        // Genuine drag/pan gesture: keep flag true briefly to swallow delayed synthetic clicks
+        resetTimer = setTimeout(() => {
+          isDraggingRef.current = false;
+        }, 120);
+      } else {
+        // Clean tap/click: immediately false so click executes reliably
+        isDraggingRef.current = false;
+      }
+    };
+
+    container.addEventListener("pointerdown", onPointerDown, { passive: true });
+    container.addEventListener("pointermove", onPointerMove, { passive: true });
+    container.addEventListener("pointerup", onPointerUp, { passive: true });
+    container.addEventListener("pointercancel", onPointerUp, { passive: true });
+
+    return () => {
+      if (resetTimer) clearTimeout(resetTimer);
+      container.removeEventListener("pointerdown", onPointerDown);
+      container.removeEventListener("pointermove", onPointerMove);
+      container.removeEventListener("pointerup", onPointerUp);
+      container.removeEventListener("pointercancel", onPointerUp);
+    };
+  }, [map, isDraggingRef]);
 
   return null;
 }
@@ -39,6 +115,8 @@ function MapTransitionController({
   onComplete,
 }) {
   const map = useMap();
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
 
   useEffect(() => {
     if (isTransitioning && targetBounds && map) {
@@ -46,19 +124,26 @@ function MapTransitionController({
       map.setMinZoom(3);
       map.setMaxZoom(18);
 
-      map.flyToBounds(targetBounds, {
-        padding: [28, 28],
-        duration: 1.0,
-        easeLinearity: 0.25,
-      });
+      try {
+        map.flyToBounds(targetBounds, {
+          padding: [28, 28],
+          duration: 0.85,
+          easeLinearity: 0.25,
+        });
+      } catch (err) {
+        console.warn("flyToBounds error:", err);
+      }
 
+      // Timer with ref ensures navigation is never cancelled by parent re-renders
       const timer = setTimeout(() => {
-        onComplete(targetStateId);
-      }, 950);
+        if (onCompleteRef.current) {
+          onCompleteRef.current(targetStateId);
+        }
+      }, 750);
 
       return () => clearTimeout(timer);
     }
-  }, [isTransitioning, targetBounds, targetStateId, map, onComplete]);
+  }, [isTransitioning, targetBounds, targetStateId, map]);
 
   return null;
 }
@@ -120,9 +205,28 @@ export default function IndiaOverviewMap() {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [transitionTargetId, setTransitionTargetId] = useState(null);
   const [transitionTargetBounds, setTransitionTargetBounds] = useState(null);
+  const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
+  const isDraggingRef = useRef(false);
+  const isTransitioningRef = useRef(false);
+  const selectedStateRef = useRef(selectedState);
   const geoJsonRef = useRef(null);
   const navigate = useNavigate();
   const { currentThemeConfig } = useTheme();
+
+  useEffect(() => {
+    selectedStateRef.current = selectedState;
+  }, [selectedState]);
+
+  // Safety failsafe to prevent UI from being stuck in transitioning state
+  useEffect(() => {
+    if (isTransitioning) {
+      const failsafe = setTimeout(() => {
+        setIsTransitioning(false);
+        isTransitioningRef.current = false;
+      }, 2500);
+      return () => clearTimeout(failsafe);
+    }
+  }, [isTransitioning]);
 
   useEffect(() => {
     let isMounted = true;
@@ -230,11 +334,31 @@ export default function IndiaOverviewMap() {
   }, [masksData, geoData]);
 
   const handleStateClick = (stateId, explicitBounds = null) => {
-    if (isTransitioning) return;
+    if (isTransitioningRef.current) return;
+    isTransitioningRef.current = true;
+    setIsTransitioning(true);
 
     const stateObj = resolveState(stateId);
-    let bounds = explicitBounds;
+    if (stateObj) {
+      setSelectedState(stateObj);
+      selectedStateRef.current = stateObj;
+    }
+    setTransitionTargetId(stateId);
 
+    const isMobile = window.innerWidth < 1024;
+    if (isMobile) {
+      // On mobile / Android: guarantee immediate, reliable navigation without animation frame drops or hanging
+      setTimeout(() => {
+        navigate(`/state/${stateId}`);
+        setTimeout(() => {
+          setIsTransitioning(false);
+          isTransitioningRef.current = false;
+        }, 300);
+      }, 100);
+      return;
+    }
+
+    let bounds = explicitBounds;
     if (!bounds || !bounds.isValid || !bounds.isValid()) {
       if (geoData) {
         const feat = findStateFeature(geoData, stateObj || { id: stateId });
@@ -249,14 +373,12 @@ export default function IndiaOverviewMap() {
       bounds = L.latLngBounds(stateObj.bounds);
     }
 
-    if (stateObj) setSelectedState(stateObj);
-    setTransitionTargetId(stateId);
-
     if (bounds && bounds.isValid()) {
-      setIsTransitioning(true);
       setTransitionTargetBounds(bounds);
     } else {
       navigate(`/state/${stateId}`);
+      setIsTransitioning(false);
+      isTransitioningRef.current = false;
     }
   };
 
@@ -267,17 +389,16 @@ export default function IndiaOverviewMap() {
   );
 
   const getStateStyle = (feature) => {
-    const rawState = feature.properties.st_nm || feature.properties.name || "";
+    const rawState = feature.properties.st_nm || feature.properties.name || "Unknown State";
     const stateObj = resolveState(rawState);
     const isTarget = transitionTargetId
       ? stateObj?.id === transitionTargetId
       : selectedState && stateObj && selectedState.id === stateObj.id;
-
-    const accentPrimary = currentThemeConfig?.accentPrimary || "#704264";
     const accentHighlight = currentThemeConfig?.accentHighlight || "#DBAFA0";
-    const accentMuted = currentThemeConfig?.accentMuted || "rgba(187, 132, 147, 0.65)";
+    const accentPrimary = currentThemeConfig?.accentPrimary || "#704264";
+    const accentMuted = currentThemeConfig?.accentMuted || "rgba(219, 175, 160, 0.4)";
+    const bgCard = currentThemeConfig?.bgCard || "rgba(36, 17, 32, 0.55)";
     const bgBase = currentThemeConfig?.bgBase || "#180b15";
-    const bgCard = currentThemeConfig?.bgCard || "#241120";
 
     if (isTransitioning) {
       return {
@@ -299,6 +420,7 @@ export default function IndiaOverviewMap() {
       className: "leaflet-fade-transition",
     };
   };
+
   const onEachFeature = (feature, layer) => {
     const rawState = feature.properties.st_nm || feature.properties.name || "Unknown State";
     const stateObj = resolveState(rawState);
@@ -309,26 +431,66 @@ export default function IndiaOverviewMap() {
     const accentHighlight = currentThemeConfig?.accentHighlight || "#DBAFA0";
     const accentPrimary = currentThemeConfig?.accentPrimary || "#704264";
 
-    // Show state name and overview metrics on hover
+    // Show state name and overview metrics with clear action button
     layer.bindTooltip(
       `
-      <div style="font-family: monospace; font-size: 12px; color: #fdf5f2; line-height: 1.35;">
-        <strong style="color: ${accentHighlight}; font-size: 13px;">${stateDisplayName}</strong>
-        <div style="color: #c2a3b0; font-size: 11px; margin-top: 2px;">
+      <div class="fra-state-tooltip-content" style="font-family: monospace; font-size: 12px; color: #fdf5f2; line-height: 1.35; min-width: 155px; pointer-events: auto;">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+          <strong style="color: ${accentHighlight}; font-size: 13px;">${stateDisplayName}</strong>
+          <span style="font-size: 10px; color: #c2a3b0; background: rgba(73, 36, 62, 0.7); padding: 1px 4px; border-radius: 3px;">${stateObj?.code || ""}</span>
+        </div>
+        <div style="color: #c2a3b0; font-size: 11px; margin-top: 3px;">
           Total Claims: <span style="color: #fdf5f2; font-weight: 600;">${totalClaimsFormatted}</span>
         </div>
         <div style="color: #c2a3b0; font-size: 11px;">
           Anomalies: <span style="color: ${accentHighlight}; font-weight: 600;">${anomaliesFormatted}</span>
         </div>
-        <div style="color: ${accentHighlight}; font-size: 10px; margin-top: 4px; font-weight: 600;">Click to view state monitoring &rarr;</div>
+        <div
+          class="fra-tooltip-cta-action"
+          style="margin-top: 6px; padding: 6px 10px; background: ${accentPrimary}; color: #ffffff; border-radius: 6px; font-size: 11px; font-weight: 600; text-align: center; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px; border: 1px solid rgba(219, 175, 160, 0.35); box-shadow: 0 2px 6px rgba(0,0,0,0.4);"
+        >
+          <span>Click to view state monitoring</span>
+          <span>&rarr;</span>
+        </div>
       </div>
     `,
-      { sticky: true, className: "custom-leaflet-tooltip" }
+      {
+        sticky: window.innerWidth >= 1024,
+        interactive: true,
+        className: "custom-leaflet-tooltip",
+      }
     );
+
+    // Tapping on the tooltip itself navigates directly to state monitoring
+    layer.on("tooltipopen", (te) => {
+      const el = te.tooltip?.getElement();
+      if (!el) return;
+      L.DomEvent.disableClickPropagation(el);
+      L.DomEvent.disableScrollPropagation(el);
+
+      let lastNavTime = 0;
+      const triggerStateNavigation = (ev) => {
+        if (ev) {
+          if (ev.stopPropagation) ev.stopPropagation();
+          if (ev.preventDefault) ev.preventDefault();
+        }
+        const now = Date.now();
+        if (now - lastNavTime < 600) return;
+        lastNavTime = now;
+
+        if (stateObj) {
+          handleStateClick(stateObj.id);
+        }
+      };
+
+      el.onclick = triggerStateNavigation;
+      el.ontouchend = triggerStateNavigation;
+    });
 
     layer.on({
       mouseover: (e) => {
-        if (isTransitioning) return;
+        if (isTransitioningRef.current) return;
+        if (window.innerWidth < 1024) return;
         const l = e.target;
         l.setStyle({
           weight: 2.5,
@@ -339,18 +501,33 @@ export default function IndiaOverviewMap() {
         l.bringToFront();
         if (stateObj) {
           setSelectedState(stateObj);
+          selectedStateRef.current = stateObj;
         }
       },
       mouseout: (e) => {
-        if (isTransitioning) return;
+        if (isTransitioningRef.current) return;
+        if (window.innerWidth < 1024) return;
         const l = e.target;
         l.setStyle(getStateStyle(feature));
       },
       click: (e) => {
-        if (isTransitioning) return;
+        if (isTransitioningRef.current || isDraggingRef.current) return;
         const l = e.target;
         const bounds = l?.getBounds ? l.getBounds() : null;
-        if (stateObj) {
+        if (!stateObj) return;
+
+        const isMobile = window.innerWidth < 1024;
+        if (isMobile) {
+          // If this state is already selected (e.g. user tapped "Click to view state monitoring" or tapped again), navigate immediately!
+          if (selectedStateRef.current && selectedStateRef.current.id === stateObj.id) {
+            handleStateClick(stateObj.id, bounds);
+          } else {
+            // First tap selects state to inspect and updates card
+            setSelectedState(stateObj);
+            selectedStateRef.current = stateObj;
+          }
+        } else {
+          // On desktop, click triggers state view transition
           handleStateClick(stateObj.id, bounds);
         }
       },
@@ -362,9 +539,9 @@ export default function IndiaOverviewMap() {
   }, [selectedState, stateMetricsMap]);
 
   return (
-    <div className="flex flex-col lg:flex-row gap-4 items-stretch flex-1 w-full h-full min-h-0">
-      {/* Primary Map Canvas - Responsive size on mobile (360-440px), 60% and full-height on desktop */}
-      <div className="w-full lg:w-[60%] h-[360px] sm:h-[440px] lg:h-full min-h-[320px] sm:min-h-[420px] lg:min-h-0 relative rounded-xl overflow-hidden border border-[#49243E]/80 bg-[#180b15] shadow-2xl flex-shrink-0">
+    <div className="flex flex-col lg:flex-row gap-3 lg:gap-4 items-stretch flex-1 w-full h-full min-h-0">
+      {/* Primary Map Canvas - Responsive size on mobile (46-48vh), 60% and full-height on desktop */}
+      <div className="w-full lg:w-[60%] h-[46vh] sm:h-[48vh] lg:h-full min-h-[320px] sm:min-h-[380px] lg:min-h-0 relative rounded-xl overflow-hidden border border-[#49243E]/80 bg-[#180b15] shadow-2xl shrink-0">
         {/* Subtle grid background only for aesthetics */}
         <div
           className="absolute inset-0 opacity-10 pointer-events-none z-[400]"
@@ -396,6 +573,9 @@ export default function IndiaOverviewMap() {
 
           {/* Strictly lock initial zoom and center to India */}
           <FitIndiaBounds />
+
+          {/* Touch controller ensuring map dragging never triggers state selection */}
+          <MapTouchController isDraggingRef={isDraggingRef} />
 
           {/* Smooth zoom and cross-fade animation handler */}
           <MapTransitionController
@@ -448,16 +628,196 @@ export default function IndiaOverviewMap() {
 
         </MapContainer>
 
-        {/* Minimal helper prompt */}
+        {/* Helper prompt - Touch-friendly on mobile, hover-friendly on desktop */}
         {!isTransitioning && (
-          <div className="absolute bottom-3 left-3 z-[1000] bg-[#180b15]/85 backdrop-blur-sm px-3 py-1.5 rounded border border-[#49243E]/80 text-[11px] font-mono text-[#c2a3b0]">
-            Hover a state to view details • Click to enter state view
+          <div className="absolute bottom-2.5 sm:bottom-3 left-2.5 sm:left-3 z-[1000] bg-[#180b15]/90 backdrop-blur-md px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg border border-[#49243E]/80 text-[10px] sm:text-[11px] font-mono text-[#c2a3b0] shadow-md pointer-events-none">
+            <span className="lg:hidden">Tap a state to inspect • Drag to explore</span>
+            <span className="hidden lg:inline">Hover a state to view details • Click to enter state view</span>
           </div>
         )}
       </div>
 
-      {/* Contextual Information Panel - 40% width with scrollable All-India State Jump */}
-      <div className="w-full lg:w-[40%] flex flex-col gap-3 lg:overflow-y-auto pr-0 lg:pr-1">
+      {/* =========================================================================
+          MOBILE VIEW (< lg): Purpose-built touch-first mobile GIS layout
+          ========================================================================= */}
+      <div className="flex lg:hidden flex-col gap-3 w-full pb-6">
+        {/* 1. Compact Selected-State Card */}
+        <div className="glass-panel rounded-xl p-3 sm:p-3.5 border border-[#49243E]/80 space-y-2.5">
+          <div className="flex items-center justify-between">
+            <div className="text-[10px] font-mono uppercase text-[#DBAFA0] font-semibold tracking-wider flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#DBAFA0]" />
+              Selected State
+            </div>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#241120] text-[#c2a3b0] border border-[#49243E]">
+              {selectedState.code} • {selectedStateStats.districtsCount || selectedState.districts?.length || 0} Districts
+            </span>
+          </div>
+
+          <div>
+            <h3 className="text-lg sm:text-xl font-bold text-white leading-tight">
+              {selectedState.name}
+            </h3>
+            {selectedState.description && (
+              <p className="text-[11px] text-[#c2a3b0] mt-0.5 line-clamp-2 leading-relaxed">
+                {selectedState.description}
+              </p>
+            )}
+          </div>
+
+          {/* 3 Key Metrics in a Single Horizontal Row */}
+          <div className="grid grid-cols-3 gap-1.5 sm:gap-2 pt-0.5">
+            <div className="p-2 rounded-lg bg-[#241120]/70 border border-[#49243E]/60 text-center">
+              <div className="text-[9px] font-mono text-[#c2a3b0] uppercase tracking-wider truncate">
+                Forest Area
+              </div>
+              <div className="text-xs sm:text-sm font-bold text-white mt-0.5 truncate">
+                {formatNumber(selectedStateStats.totalAreaHa)} <span className="text-[9px] font-normal text-[#c2a3b0]">ha</span>
+              </div>
+            </div>
+
+            <div className="p-2 rounded-lg bg-[#241120]/70 border border-[#49243E]/60 text-center">
+              <div className="text-[9px] font-mono text-[#c2a3b0] uppercase tracking-wider truncate">
+                Districts
+              </div>
+              <div className="text-xs sm:text-sm font-bold text-white mt-0.5 truncate">
+                {selectedStateStats.districtsCount || 0} <span className="text-[9px] font-normal text-[#c2a3b0]">active</span>
+              </div>
+            </div>
+
+            <div className="p-2 rounded-lg bg-[#241120]/70 border border-[#49243E]/60 text-center">
+              <div className="text-[9px] font-mono text-[#c2a3b0] uppercase tracking-wider truncate">
+                Tenure Types
+              </div>
+              <div className="text-xs sm:text-sm font-bold text-white mt-0.5 truncate">
+                {selectedStateStats.ifrCount || 0} <span className="text-[9px] font-normal text-[#c2a3b0]">IFR</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 2. Primary "View State Monitoring" CTA Button */}
+        <button
+          type="button"
+          onClick={() => handleStateClick(selectedState.id)}
+          disabled={isTransitioning}
+          className={`w-full py-3 px-4 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 cursor-pointer shadow-[0_4px_20px_rgba(112,66,100,0.35)] active:scale-[0.98] select-none touch-manipulation ${
+            isTransitioning
+              ? "bg-[#704264]/70 text-white cursor-wait"
+              : "bg-[#704264] hover:bg-[#864e77] text-white border border-[#BB8493]/30"
+          }`}
+        >
+          <span>
+            {isTransitioning
+              ? `Loading ${selectedState.name}...`
+              : `View ${selectedState.name} Monitoring (${selectedStateStats.totalClaims} Claims)`}
+          </span>
+          <ChevronRight className={`w-4 h-4 ${isTransitioning ? "animate-pulse" : ""}`} />
+        </button>
+
+        {/* 3. "Browse States" Button (Opens Mobile Bottom Sheet) */}
+        <button
+          onClick={() => setIsBottomSheetOpen(true)}
+          className="w-full py-2.5 px-3.5 rounded-xl font-mono text-xs font-semibold bg-[#241120] hover:bg-[#35182e] border border-[#49243E] hover:border-[#BB8493] text-[#DBAFA0] flex items-center justify-between shadow-sm active:scale-[0.98] transition-all cursor-pointer"
+        >
+          <div className="flex items-center gap-2">
+            <Compass className="w-4 h-4 text-[#DBAFA0]" />
+            <span className="font-bold text-white">Browse States</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-[#c2a3b0]">
+            <span className="px-1.5 py-0.5 rounded bg-[#49243E]/80 text-[#DBAFA0] text-[10px] font-semibold">
+              36 States &amp; UTs
+            </span>
+            <ChevronRight className="w-4 h-4 text-[#c2a3b0]/70" />
+          </div>
+        </button>
+
+        {/* 4. Detailed Monitoring Information Section (Reached by scrolling) */}
+        <div className="glass-panel rounded-xl p-3 sm:p-3.5 border border-[#49243E]/80 space-y-3 font-mono text-xs">
+          <div className="flex items-center justify-between pb-2 border-b border-[#49243E]/70">
+            <span className="text-[11px] font-bold text-slate-200 uppercase tracking-wider">
+              Monitoring Details
+            </span>
+            <span className="text-[10px] text-[#c2a3b0]">
+              {selectedState.name} Summary
+            </span>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex justify-between py-1 border-b border-[#49243E]/50">
+              <span className="text-[#c2a3b0]">Total Monitored Claims:</span>
+              <span className="font-bold text-white text-xs">
+                {formatNumber(selectedStateStats.totalClaims)}
+              </span>
+            </div>
+
+            <div className="flex justify-between py-1 border-b border-[#49243E]/50">
+              <span className="text-[#c2a3b0]">Title Granted / Approved:</span>
+              <span className="font-bold text-emerald-400 text-xs">
+                {formatNumber(selectedStateStats.approvedClaims || 0)}
+              </span>
+            </div>
+
+            <div className="flex justify-between py-1 border-b border-[#49243E]/50">
+              <span className="text-[#c2a3b0]">Pending Verification:</span>
+              <span className="font-bold text-[#BB8493] text-xs">
+                {formatNumber(selectedStateStats.pendingClaims)}
+              </span>
+            </div>
+
+            <div className="flex justify-between py-1 border-b border-[#49243E]/50">
+              <span className="text-[#c2a3b0]">ML Detected Anomalies:</span>
+              <span className="font-bold text-[#DBAFA0] text-xs">
+                {formatNumber(selectedStateStats.anomalies)}
+              </span>
+            </div>
+
+            {selectedStateStats.criticalAnomalies > 0 ? (
+              <div className="flex justify-between py-1 border-b border-[#49243E]/50">
+                <span className="text-rose-400 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping inline-block" />
+                  Critical Alerts:
+                </span>
+                <span className="font-bold text-rose-400 text-xs">
+                  {selectedStateStats.criticalAnomalies} (High Risk)
+                </span>
+              </div>
+            ) : (
+              <div className="flex justify-between py-1 border-b border-[#49243E]/50">
+                <span className="text-emerald-400">Critical Alerts:</span>
+                <span className="font-semibold text-emerald-400 text-xs">
+                  0 (Compliant)
+                </span>
+              </div>
+            )}
+
+            {/* FSI & Demographics */}
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <div className="p-2 rounded bg-[#241120] border border-[#49243E]/60">
+                <div className="text-[9px] text-[#c2a3b0]/70">Forest Cover (FSI)</div>
+                <div className="font-semibold text-slate-200 mt-0.5 text-xs">
+                  {selectedState.stats.forestCoverKm2 ? `${formatNumber(selectedState.stats.forestCoverKm2)} km²` : "N/A"}
+                </div>
+              </div>
+              <div className="p-2 rounded bg-[#241120] border border-[#49243E]/60">
+                <div className="text-[9px] text-[#c2a3b0]/70">Tribal Population</div>
+                <div className="font-semibold text-slate-200 mt-0.5 text-xs">
+                  {selectedState.stats.tribalPopulationPercent !== undefined ? `${selectedState.stats.tribalPopulationPercent}%` : "N/A"}
+                </div>
+              </div>
+            </div>
+
+            {/* AI Spatial Assessment */}
+            <div className="p-2.5 rounded-lg bg-[#241120] border border-[#49243E]/80 text-[11px] text-[#c2a3b0] leading-relaxed mt-2">
+              {selectedStateStats.criticalAnomalies > 0
+                ? `${selectedStateStats.criticalAnomalies} high-risk claims flagged by ML for field boundary verification. ${selectedStateStats.pendingClaims} pending review across ${selectedStateStats.districtsCount || 0} districts.`
+                : `All spatial bounds verified. ${selectedStateStats.approvedClaims || 0} titles granted with zero high-risk anomalies.`}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Contextual Information Panel - 40% width with scrollable All-India State Jump (Desktop Only) */}
+      <div className="hidden lg:flex w-full lg:w-[40%] flex-col gap-3 lg:overflow-y-auto pr-0 lg:pr-1">
         {/* State Metrics Card */}
         <div className="glass-panel rounded-xl p-4 border border-[#49243E]/80 space-y-3.5 shrink-0">
           <div>
@@ -680,6 +1040,23 @@ export default function IndiaOverviewMap() {
           </div>
         </div>
       </div>
+
+      {/* Mobile Bottom Sheet for Browse States */}
+      <StateBottomSheet
+        isOpen={isBottomSheetOpen}
+        onClose={() => setIsBottomSheetOpen(false)}
+        states={STATES_DATA}
+        selectedState={selectedState}
+        onSelectState={(s) => {
+          setSelectedState(s);
+          selectedStateRef.current = s;
+        }}
+        onNavigateState={(s) => {
+          setIsBottomSheetOpen(false);
+          handleStateClick(s.id);
+        }}
+        getStateMetrics={getStateMetrics}
+      />
     </div>
   );
 }

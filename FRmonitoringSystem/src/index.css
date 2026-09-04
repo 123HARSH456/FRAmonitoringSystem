@@ -297,6 +297,22 @@ body {
   color: #ffffff !important;
 }
 
+@media (max-width: 1023px) {
+  .leaflet-control-zoom {
+    margin-top: 8px !important;
+    margin-left: 8px !important;
+    border: none !important;
+  }
+  .leaflet-control-zoom a {
+    width: 28px !important;
+    height: 28px !important;
+    line-height: 28px !important;
+    font-size: 14px !important;
+    border-radius: 6px !important;
+    margin-bottom: 3px !important;
+  }
+}
+
 .leaflet-popup-content-wrapper {
   background: rgba(36, 17, 32, 0.95) !important;
   color: #fdf5f2 !important;
@@ -399,19 +415,29 @@ path.state-mask-no-transition {
   pointer-events: none !important;
 }
 
-/* Custom District Tooltip - sleek dark glassmorphic styling, non-blocking pointer events */
+/* Custom District / State Tooltip - sleek dark glassmorphic styling, interactive and touch-ready */
 .custom-leaflet-tooltip {
-  background: rgba(36, 17, 32, 0.94) !important;
-  border: 1px solid rgba(219, 175, 160, 0.45) !important;
-  border-radius: 6px !important;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6) !important;
-  backdrop-filter: blur(8px) !important;
-  padding: 5px 9px !important;
-  pointer-events: none !important;
+  background: rgba(36, 17, 32, 0.96) !important;
+  border: 1px solid rgba(219, 175, 160, 0.5) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.65) !important;
+  backdrop-filter: blur(10px) !important;
+  padding: 8px 12px !important;
+  pointer-events: auto !important;
+  cursor: pointer !important;
+  touch-action: manipulation !important;
+  user-select: none !important;
   transition: opacity 0.1s ease !important;
+  z-index: 1000 !important;
 }
 
 .custom-leaflet-tooltip::before {
-  border-top-color: rgba(36, 17, 32, 0.94) !important;
-  border-bottom-color: rgba(36, 17, 32, 0.94) !important;
+  border-top-color: rgba(36, 17, 32, 0.96) !important;
+  border-bottom-color: rgba(36, 17, 32, 0.96) !important;
 }
+
+.custom-leaflet-tooltip:active {
+  transform: scale(0.98);
+  border-color: rgba(219, 175, 160, 0.8) !important;
+}
+
