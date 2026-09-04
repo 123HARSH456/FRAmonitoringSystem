@@ -1,12 +1,13 @@
 import { ArrowLeft } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
+import ThemeSelector from "./ThemeSelector";
 
 export default function Header() {
   const location = useLocation();
   const isStateView = location.pathname.startsWith("/state");
 
   return (
-    <header className="bg-[#180b15]/95 backdrop-blur-md border-b border-[#49243E]/80 px-3 lg:px-5 py-2">
+    <header className="relative z-[9999] bg-[#180b15]/95 backdrop-blur-md border-b border-[#49243E]/80 px-3 lg:px-5 py-2 shrink-0">
       <div className="w-full flex items-center justify-between">
         {/* Simple Branding */}
         <Link to="/" className="flex items-center gap-3 group">
@@ -31,17 +32,18 @@ export default function Header() {
           </div>
         </Link>
 
-        {/* Navigation */}
-        <div className="flex items-center gap-4 text-xs font-mono">
+        {/* Navigation & Global Theme Selector */}
+        <div className="flex items-center gap-2.5 sm:gap-3 text-xs font-mono">
           {isStateView && (
             <Link
               to="/"
-              className="flex items-center gap-1 px-2.5 py-1 rounded bg-[#241120] hover:bg-[#35182e] text-[#DBAFA0] hover:text-white border border-[#704264]/60 transition-colors text-xs"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#241120] hover:bg-[#35182e] text-[#DBAFA0] hover:text-white border border-[#704264]/60 transition-colors text-xs"
             >
               <ArrowLeft className="w-3.5 h-3.5 text-[#DBAFA0]" />
               <span>India Map</span>
             </Link>
           )}
+          <ThemeSelector />
         </div>
       </div>
     </header>

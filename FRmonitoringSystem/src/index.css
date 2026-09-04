@@ -16,54 +16,250 @@
    #BB8493 (Dusty Rose / Mauve Pink)
    #DBAFA0 (Warm Blush Peach / Sand)
 */
-:root {
-  --bg-primary: #180b15;
-  --bg-secondary: #241120;
-  --bg-card: rgba(44, 20, 38, 0.75);
-  --border-subtle: rgba(112, 66, 100, 0.4);
-  --border-glow: rgba(187, 132, 147, 0.35);
-  --text-main: #fdf5f2;
-  --text-muted: #c2a3b0;
-  --accent-plum: #49243E;
-  --accent-purple: #704264;
-  --accent-rose: #BB8493;
-  --accent-peach: #DBAFA0;
-  --accent-emerald: #10b981;
-  --accent-amber: #f59e0b;
-  --accent-rose-alert: #f43f5e;
+/* ==========================================================================
+   GLOBAL THEME COLOR SYSTEM
+   Themes: orange (Warm Solar), blue (Deep Ocean), green (Forest Emerald), black (Stealth Zinc)
+   ========================================================================== */
+
+:root,
+[data-theme="orange"] {
+  --theme-id: "orange";
+  --bg-primary: #150f0a;
+  --bg-secondary: #22170f;
+  --bg-card: rgba(36, 23, 15, 0.85);
+  --border-subtle: rgba(234, 88, 12, 0.35);
+  --border-glow: rgba(249, 115, 22, 0.45);
+  --border-main: #4d2710;
+  --text-main: #fef7ee;
+  --text-muted: #d5b298;
+  --accent-primary: #ea580c;
+  --accent-hover: #f97316;
+  --accent-subtle: #9a3412;
+  --accent-highlight: #fed7aa;
+  --accent-glow: rgba(249, 115, 22, 0.35);
+  --swatch: #f97316;
+}
+
+[data-theme="blue"] {
+  --theme-id: "blue";
+  --bg-primary: #0a111c;
+  --bg-secondary: #101c2e;
+  --bg-card: rgba(16, 28, 46, 0.85);
+  --border-subtle: rgba(2, 132, 199, 0.35);
+  --border-glow: rgba(56, 189, 248, 0.45);
+  --border-main: #193556;
+  --text-main: #f0f7ff;
+  --text-muted: #94b5d4;
+  --accent-primary: #0284c7;
+  --accent-hover: #0ea5e9;
+  --accent-subtle: #075985;
+  --accent-highlight: #bae6fd;
+  --accent-glow: rgba(2, 132, 199, 0.35);
+  --swatch: #0284c7;
+}
+
+[data-theme="green"] {
+  --theme-id: "green";
+  --bg-primary: #0a150f;
+  --bg-secondary: #102219;
+  --bg-card: rgba(16, 34, 25, 0.85);
+  --border-subtle: rgba(16, 185, 129, 0.35);
+  --border-glow: rgba(52, 211, 153, 0.45);
+  --border-main: #17422f;
+  --text-main: #f0fdf4;
+  --text-muted: #9dcbb4;
+  --accent-primary: #059669;
+  --accent-hover: #10b981;
+  --accent-subtle: #065f46;
+  --accent-highlight: #a7f3d0;
+  --accent-glow: rgba(16, 185, 129, 0.35);
+  --swatch: #10b981;
+}
+
+[data-theme="black"] {
+  --theme-id: "black";
+  --bg-primary: #09090b;
+  --bg-secondary: #141417;
+  --bg-card: rgba(24, 24, 27, 0.88);
+  --border-subtle: rgba(113, 113, 122, 0.35);
+  --border-glow: rgba(161, 161, 170, 0.4);
+  --border-main: #27272a;
+  --text-main: #fafafa;
+  --text-muted: #a1a1aa;
+  --accent-primary: #3f3f46;
+  --accent-hover: #52525b;
+  --accent-subtle: #27272a;
+  --accent-highlight: #e4e4e7;
+  --accent-glow: rgba(255, 255, 255, 0.15);
+  --swatch: #71717a;
 }
 
 body {
   margin: 0;
   padding: 0;
-  background-color: #180b15;
-  color: #fdf5f2;
+  background-color: var(--bg-primary);
+  color: var(--text-main);
   font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.4s ease, color 0.4s ease;
 }
 
-/* Glassmorphic command center panels with plum/rose tones */
-.glass-panel {
-  background: rgba(36, 17, 32, 0.75);
+/* Dynamic theme overrides across CANOPY components */
+[data-theme] .bg-\[\#180b15\] {
+  background-color: var(--bg-primary) !important;
+}
+[data-theme] .bg-\[\#180b15\]\/95 {
+  background-color: color-mix(in srgb, var(--bg-primary) 95%, transparent) !important;
+}
+[data-theme] .bg-\[\#180b15\]\/90 {
+  background-color: color-mix(in srgb, var(--bg-primary) 90%, transparent) !important;
+}
+[data-theme] .bg-\[\#180b15\]\/85 {
+  background-color: color-mix(in srgb, var(--bg-primary) 85%, transparent) !important;
+}
+
+[data-theme] .bg-\[\#241120\] {
+  background-color: var(--bg-secondary) !important;
+}
+[data-theme] .bg-\[\#241120\]\/60 {
+  background-color: color-mix(in srgb, var(--bg-secondary) 60%, transparent) !important;
+}
+[data-theme] .bg-\[\#241120\]\/95 {
+  background-color: color-mix(in srgb, var(--bg-secondary) 95%, transparent) !important;
+}
+[data-theme] .hover\:bg-\[\#35182e\]:hover {
+  background-color: var(--accent-subtle) !important;
+}
+
+[data-theme] .border-\[\#49243E\] {
+  border-color: var(--border-main) !important;
+}
+[data-theme] .border-\[\#49243E\]\/80 {
+  border-color: color-mix(in srgb, var(--border-main) 80%, transparent) !important;
+}
+[data-theme] .border-\[\#49243E\]\/70 {
+  border-color: color-mix(in srgb, var(--border-main) 70%, transparent) !important;
+}
+[data-theme] .border-\[\#49243E\]\/60 {
+  border-color: color-mix(in srgb, var(--border-main) 60%, transparent) !important;
+}
+
+[data-theme] .border-\[\#704264\]\/60 {
+  border-color: color-mix(in srgb, var(--border-subtle) 60%, transparent) !important;
+}
+[data-theme] .border-\[\#BB8493\]\/50 {
+  border-color: color-mix(in srgb, var(--border-glow) 50%, transparent) !important;
+}
+[data-theme] .border-\[\#BB8493\]\/40 {
+  border-color: color-mix(in srgb, var(--border-glow) 40%, transparent) !important;
+}
+[data-theme] .border-\[\#BB8493\]\/30 {
+  border-color: color-mix(in srgb, var(--border-glow) 30%, transparent) !important;
+}
+[data-theme] .border-\[\#BB8493\] {
+  border-color: var(--accent-hover) !important;
+}
+
+[data-theme] .bg-\[\#704264\] {
+  background-color: var(--accent-primary) !important;
+}
+[data-theme] .hover\:bg-\[\#864e77\]:hover {
+  background-color: var(--accent-hover) !important;
+}
+[data-theme] .bg-\[\#49243E\]\/80 {
+  background-color: color-mix(in srgb, var(--accent-subtle) 80%, transparent) !important;
+}
+[data-theme] .bg-\[\#49243E\]\/70 {
+  background-color: color-mix(in srgb, var(--accent-subtle) 70%, transparent) !important;
+}
+
+[data-theme] .text-\[\#DBAFA0\] {
+  color: var(--accent-highlight) !important;
+}
+[data-theme] .group-hover\:text-\[\#DBAFA0\]:hover {
+  color: var(--accent-highlight) !important;
+}
+[data-theme] .hover\:text-\[\#DBAFA0\]:hover {
+  color: var(--accent-highlight) !important;
+}
+[data-theme] .focus\:border-\[\#BB8493\]:focus {
+  border-color: var(--accent-hover) !important;
+}
+
+[data-theme] .text-\[\#BB8493\] {
+  color: var(--text-muted) !important;
+}
+[data-theme] .text-\[\#c2a3b0\] {
+  color: var(--text-muted) !important;
+}
+[data-theme] .text-\[\#c2a3b0\]\/70 {
+  color: color-mix(in srgb, var(--text-muted) 70%, transparent) !important;
+}
+[data-theme] .text-\[\#c2a3b0\]\/60 {
+  color: color-mix(in srgb, var(--text-muted) 60%, transparent) !important;
+}
+
+[data-theme] .glass-panel {
+  background: var(--bg-card) !important;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(187, 132, 147, 0.22);
+  border: 1px solid var(--border-main) !important;
 }
 
-.glass-panel-subtle {
-  background: rgba(36, 17, 32, 0.55);
+[data-theme] .glass-panel-subtle {
+  background: color-mix(in srgb, var(--bg-card) 75%, transparent) !important;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(112, 66, 100, 0.3);
+  border: 1px solid var(--border-subtle) !important;
 }
 
-.glass-panel-glow {
-  background: rgba(44, 20, 38, 0.88);
+[data-theme] .glass-panel-glow {
+  background: var(--bg-card) !important;
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(219, 175, 160, 0.35);
-  box-shadow: 0 0 25px -5px rgba(187, 132, 147, 0.25);
+  border: 1px solid var(--accent-hover) !important;
+  box-shadow: 0 0 25px -5px var(--accent-glow) !important;
+}
+
+/* ==========================================================================
+   POWERPOINT-STYLE HORIZONTAL SWIPE / WIPE TRANSITION
+   ========================================================================== */
+.theme-swipe-container {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 99999;
+  overflow: hidden;
+}
+
+.theme-swipe-beam {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 140vw;
+  left: -140vw;
+  pointer-events: none;
+  animation: ppt-horizontal-wipe 0.58s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--sweep-accent, #f97316) 12%, transparent) 75%,
+    color-mix(in srgb, var(--sweep-accent, #f97316) 45%, transparent) 96%,
+    var(--sweep-accent, #f97316) 100%
+  );
+  box-shadow: 
+    6px 0 25px 2px var(--sweep-accent, #f97316),
+    12px 0 60px 8px color-mix(in srgb, var(--sweep-accent, #f97316) 50%, transparent);
+}
+
+@keyframes ppt-horizontal-wipe {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(240vw);
+  }
 }
 
 /* Custom Sleek Scrollbar */

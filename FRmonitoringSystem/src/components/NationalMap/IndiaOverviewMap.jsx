@@ -7,6 +7,7 @@ import { formatNumber } from "../../utils/formatters";
 import { fetchIndiaGeoJSON, findStateFeature, fetchStateMasks } from "../../utils/geoCache";
 import { fetchEnrichedClaims, computeAllStatesMetricsMap } from "../../services/claimsService";
 import { ChevronRight, Search } from "lucide-react";
+import { useTheme } from "../../context/ThemeContext";
 
 
 
@@ -121,6 +122,7 @@ export default function IndiaOverviewMap() {
   const [transitionTargetBounds, setTransitionTargetBounds] = useState(null);
   const geoJsonRef = useRef(null);
   const navigate = useNavigate();
+  const { currentThemeConfig } = useTheme();
 
   useEffect(() => {
     let isMounted = true;
@@ -271,11 +273,17 @@ export default function IndiaOverviewMap() {
       ? stateObj?.id === transitionTargetId
       : selectedState && stateObj && selectedState.id === stateObj.id;
 
+    const accentPrimary = currentThemeConfig?.accentPrimary || "#704264";
+    const accentHighlight = currentThemeConfig?.accentHighlight || "#DBAFA0";
+    const accentMuted = currentThemeConfig?.accentMuted || "rgba(187, 132, 147, 0.65)";
+    const bgBase = currentThemeConfig?.bgBase || "#180b15";
+    const bgCard = currentThemeConfig?.bgCard || "#241120";
+
     if (isTransitioning) {
       return {
-        fillColor: isTarget ? "#704264" : "#180b15",
+        fillColor: isTarget ? accentPrimary : bgBase,
         fillOpacity: isTarget ? 0.35 : 0.0,
-        color: isTarget ? "#DBAFA0" : "rgba(219, 175, 160, 0.0)",
+        color: isTarget ? accentHighlight : "rgba(219, 175, 160, 0.0)",
         weight: isTarget ? 2.5 : 0.5,
         opacity: isTarget ? 0.95 : 0.0,
         className: "leaflet-fade-transition",
@@ -283,9 +291,9 @@ export default function IndiaOverviewMap() {
     }
 
     return {
-      fillColor: isTarget ? "#704264" : "#241120",
+      fillColor: isTarget ? accentPrimary : bgCard,
       fillOpacity: isTarget ? 0.38 : 0.04,
-      color: isTarget ? "#DBAFA0" : "rgba(187, 132, 147, 0.65)",
+      color: isTarget ? accentHighlight : accentMuted,
       weight: isTarget ? 2.4 : 1.2,
       opacity: 0.95,
       className: "leaflet-fade-transition",
@@ -298,19 +306,21 @@ export default function IndiaOverviewMap() {
     const sMetrics = getStateMetrics(stateObj || rawState);
     const totalClaimsFormatted = sMetrics ? formatNumber(sMetrics.totalClaims) : "0";
     const anomaliesFormatted = sMetrics ? formatNumber(sMetrics.anomalies) : "0";
+    const accentHighlight = currentThemeConfig?.accentHighlight || "#DBAFA0";
+    const accentPrimary = currentThemeConfig?.accentPrimary || "#704264";
 
     // Show state name and overview metrics on hover
     layer.bindTooltip(
       `
       <div style="font-family: monospace; font-size: 12px; color: #fdf5f2; line-height: 1.35;">
-        <strong style="color: #DBAFA0; font-size: 13px;">${stateDisplayName}</strong>
+        <strong style="color: ${accentHighlight}; font-size: 13px;">${stateDisplayName}</strong>
         <div style="color: #c2a3b0; font-size: 11px; margin-top: 2px;">
           Total Claims: <span style="color: #fdf5f2; font-weight: 600;">${totalClaimsFormatted}</span>
         </div>
         <div style="color: #c2a3b0; font-size: 11px;">
-          Anomalies: <span style="color: #BB8493; font-weight: 600;">${anomaliesFormatted}</span>
+          Anomalies: <span style="color: ${accentHighlight}; font-weight: 600;">${anomaliesFormatted}</span>
         </div>
-        <div style="color: #DBAFA0; font-size: 10px; margin-top: 4px; font-weight: 600;">Click to view state monitoring &rarr;</div>
+        <div style="color: ${accentHighlight}; font-size: 10px; margin-top: 4px; font-weight: 600;">Click to view state monitoring &rarr;</div>
       </div>
     `,
       { sticky: true, className: "custom-leaflet-tooltip" }
@@ -322,8 +332,8 @@ export default function IndiaOverviewMap() {
         const l = e.target;
         l.setStyle({
           weight: 2.5,
-          color: "#DBAFA0",
-          fillColor: "#704264",
+          color: accentHighlight,
+          fillColor: accentPrimary,
           fillOpacity: 0.42,
         });
         l.bringToFront();
@@ -410,11 +420,11 @@ export default function IndiaOverviewMap() {
           {/* Stable Static Geographic Exterior Mask */}
           {indiaMaskGeoJSON && (
             <GeoJSON
-              key="india-exterior-static-mask"
+              key={`india-exterior-static-mask-${currentThemeConfig?.id || "default"}`}
               data={indiaMaskGeoJSON}
               pane="indiaMaskPane"
               style={{
-                fillColor: "#180b15",
+                fillColor: currentThemeConfig?.bgBase || "#180b15",
                 fillOpacity: 1.0,
                 stroke: false,
                 weight: 0,
@@ -427,6 +437,7 @@ export default function IndiaOverviewMap() {
           {/* India States Real GeoJSON Boundary Layer */}
           {geoData && (
             <GeoJSON
+              key={`india-states-${currentThemeConfig?.id || "default"}`}
               ref={geoJsonRef}
               data={geoData}
               style={getStateStyle}

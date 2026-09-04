@@ -1,12 +1,14 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { ThemeProvider } from "./context/ThemeContext";
 import Header from "./components/common/Header";
 import NationalOverviewPage from "./pages/NationalOverview/NationalOverviewPage";
 import StateMonitoringPage from "./pages/StateMonitoring/StateMonitoringPage";
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <div className="min-h-screen lg:h-screen bg-[#180b15] text-[#fdf5f2] flex flex-col selection:bg-[#704264] selection:text-white overflow-y-auto lg:overflow-hidden">
+    <ThemeProvider>
+      <BrowserRouter>
+        <div className="min-h-screen lg:h-screen bg-[#180b15] text-[#fdf5f2] flex flex-col selection:bg-[#704264] selection:text-white overflow-y-auto lg:overflow-hidden">
         {/* Simple Header */}
         <Header />
 
@@ -20,5 +22,6 @@ export default function App() {
         </main>
       </div>
     </BrowserRouter>
+    </ThemeProvider>
   );
 }

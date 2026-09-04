@@ -13,10 +13,11 @@ import {
   createInvertedMask,
 } from "../../utils/geoCache";
 import { filterClaimsByState, isClaimInDistrict } from "../../services/claimsService";
+import { useTheme } from "../../context/ThemeContext";
 
 // Native Leaflet vector layer for the outside-state mask.
 // Uses precomputed topologically certified WGS84 inverted mask to guarantee zero clipping artifacts.
-function StateExteriorMaskLayer({ stateFeature, stateId, maskFeature }) {
+function StateExteriorMaskLayer({ stateFeature, stateId, maskFeature, maskBg = "#180b15" }) {
   const map = useMap();
   const layerRef = useRef(null);
 
@@ -62,11 +63,11 @@ function StateExteriorMaskLayer({ stateFeature, stateId, maskFeature }) {
       renderer: maskRenderer,
       interactive: false,
       style: {
-        fillColor: "#180b15",
+        fillColor: maskBg,
         fillOpacity: 1.0,
         stroke: false,
         weight: 0,
-        color: "#180b15",
+        color: maskBg,
         fillRule: "evenodd",
         className: "state-mask-no-transition",
       },
@@ -85,7 +86,7 @@ function StateExteriorMaskLayer({ stateFeature, stateId, maskFeature }) {
         layerRef.current = null;
       }
     };
-  }, [map, stateFeature, stateId, maskFeature]);
+  }, [map, stateFeature, stateId, maskFeature, maskBg]);
 
   return null;
 }
@@ -208,7 +209,7 @@ function DistrictTooltipController() {
 }
 
 // Clean, compact div icon for claim markers with ML risk levels and visual emphasis for selected district
-function createClaimMarkerIcon(riskLevel, isSelected, isInSelectedDistrict) {
+function createClaimMarkerIcon(riskLevel, isSelected, isInSelectedDistrict, themeHighlight = "#DBAFA0") {
   let color = "#10b981"; // LOW: emerald
   let pulseRgbaSubtle = "rgba(16, 185, 129, 0.3)";
   if (riskLevel === "HIGH") {
@@ -225,7 +226,7 @@ function createClaimMarkerIcon(riskLevel, isSelected, isInSelectedDistrict) {
   // - Normal / In Other Districts: 13px dot, dark slate border, subtle glow, visible normally, zIndex 100
   const dotSize = isSelected ? 18 : isInSelectedDistrict ? 15 : 13;
   const borderSize = isSelected ? 3 : isInSelectedDistrict ? 2.5 : 2;
-  const borderColor = isSelected ? "#DBAFA0" : isInSelectedDistrict ? "#ffffff" : "#241120";
+  const borderColor = isSelected ? themeHighlight : isInSelectedDistrict ? "#ffffff" : "#241120";
   const zIndex = isSelected ? 1000 : isInSelectedDistrict ? 500 : 100;
 
   // Beacon ripple ring for emphasized/blinking claims inside the active district
@@ -254,7 +255,7 @@ function createClaimMarkerIcon(riskLevel, isSelected, isInSelectedDistrict) {
           border: ${borderSize}px solid ${borderColor};
           box-shadow: ${
             isSelected
-              ? `0 0 16px ${color}, 0 0 0 4px #DBAFA0`
+              ? `0 0 16px ${color}, 0 0 0 4px ${themeHighlight}`
               : isInSelectedDistrict
               ? `0 0 12px ${color}, 0 0 0 2px ${pulseRgbaSubtle}`
               : `0 0 6px ${color}`
@@ -278,6 +279,12 @@ export default function StateGISMap({
   selectedClaim,
   onSelectClaim,
 }) {
+  const { currentThemeConfig } = useTheme();
+  const highlight = currentThemeConfig?.accentHighlight || "#DBAFA0";
+  const primary = currentThemeConfig?.accentPrimary || "#704264";
+  const muted = currentThemeConfig?.accentMuted || "#BB8493";
+  const bgBase = currentThemeConfig?.bgBase || "#180b15";
+
   const [geoData, setGeoData] = useState(null);
   const [districtsData, setDistrictsData] = useState(null);
   const [masksData, setMasksData] = useState(null);
@@ -412,16 +419,17 @@ export default function StateGISMap({
           stateFeature={stateFeature}
           stateId={state?.id}
           maskFeature={stateMaskFeature}
+          maskBg={bgBase}
         />
 
         {/* 3b. Authentic Official State Outer Perimeter Border (High-Resolution Curves) */}
         {stateFeature && (
           <GeoJSON
-            key={`state-perimeter-${state.id}-${stateFeature.properties?.vertex_count || "hires"}`}
+            key={`state-perimeter-${state.id}-${currentThemeConfig?.id || "default"}`}
             data={stateFeature}
             style={{
               fill: false,
-              color: "#DBAFA0",
+              color: highlight,
               weight: 2.2,
               opacity: 0.95,
               interactive: false,
@@ -432,7 +440,7 @@ export default function StateGISMap({
         {/* 4. District Boundaries Layer: Exactly as in districts.geojson with visual selection highlight */}
         {stateDistricts && (
           <GeoJSON
-            key={`districts-${state.id}-${selectedDistrict || "none"}`}
+            key={`districts-${state.id}-${selectedDistrict || "none"}-${currentThemeConfig?.id || "default"}`}
             data={stateDistricts}
             style={(feature) => {
               const rawDist =
@@ -443,9 +451,9 @@ export default function StateGISMap({
               const isDistSelected = isDistrictMatch(selectedDistrict, rawDist);
 
               return {
-                fillColor: "#704264",
+                fillColor: primary,
                 fillOpacity: districtsLoaded ? (isDistSelected ? 0.32 : 0.08) : 0,
-                color: isDistSelected ? "#DBAFA0" : "rgba(187, 132, 147, 0.4)",
+                color: isDistSelected ? highlight : "rgba(187, 132, 147, 0.4)",
                 weight: isDistSelected ? 2.5 : 1.0,
                 opacity: districtsLoaded ? 0.95 : 0,
                 className: "district-fade-in",
@@ -470,8 +478,8 @@ export default function StateGISMap({
 
                   l.setStyle({
                     weight: 2.4,
-                    color: "#DBAFA0",
-                    fillColor: "#BB8493",
+                    color: highlight,
+                    fillColor: muted,
                     fillOpacity: isDistSelected ? 0.38 : 0.22,
                   });
                   l.bringToFront();
@@ -479,13 +487,13 @@ export default function StateGISMap({
                   if (mapInstance._districtTooltip) {
                     const tooltipContent = `
                       <div style="font-family: monospace; font-size: 11px; color: #fdf5f2; line-height: 1.3;">
-                        <strong style="color: #DBAFA0; font-size: 12px;">${districtName}</strong>
+                        <strong style="color: ${highlight}; font-size: 12px;">${districtName}</strong>
                         <div style="color: #c2a3b0; font-size: 10px; margin-top: 2px;">
                           ${isDistSelected ? "Currently active district" : "Click to select & highlight claims"}
                         </div>
                       </div>`;
                     mapInstance._districtTooltip
-                      .setContent(tooltipContent)
+                        .setContent(tooltipContent)
                       .setLatLng(e.latlng);
                     if (!mapInstance.hasLayer(mapInstance._districtTooltip)) {
                       mapInstance._districtTooltip.openOn(mapInstance);
@@ -507,9 +515,9 @@ export default function StateGISMap({
                     mapInstance._districtTooltip.close();
                   }
                   l.setStyle({
-                    fillColor: "#704264",
+                    fillColor: primary,
                     fillOpacity: isDistSelected ? 0.32 : 0.08,
-                    color: isDistSelected ? "#DBAFA0" : "rgba(187, 132, 147, 0.4)",
+                    color: isDistSelected ? highlight : "rgba(187, 132, 147, 0.4)",
                     weight: isDistSelected ? 2.5 : 1.0,
                     opacity: 0.95,
                   });
@@ -576,7 +584,7 @@ export default function StateGISMap({
 
               <Marker
                 position={claim.centroid}
-                icon={createClaimMarkerIcon(claim.riskLevel, isSelected, isInSelectedDistrict)}
+                icon={createClaimMarkerIcon(claim.riskLevel, isSelected, isInSelectedDistrict, highlight)}
                 eventHandlers={{
                   click: () => {
                     if (onSelectDistrict && claim.district) {
