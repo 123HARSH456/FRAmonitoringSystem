@@ -4,7 +4,7 @@ import { MapContainer, TileLayer, GeoJSON, Marker, useMap, Pane } from "react-le
 import L from "leaflet";
 import { STATES_DATA, resolveState } from "../../data/statesData";
 import { formatNumber } from "../../utils/formatters";
-import { fetchIndiaGeoJSON, findStateFeature } from "../../utils/geoCache";
+import { fetchIndiaGeoJSON, findStateFeature, fetchStateMasks } from "../../utils/geoCache";
 import { fetchEnrichedClaims, computeAllStatesMetricsMap } from "../../services/claimsService";
 import { ChevronRight, Search } from "lucide-react";
 
@@ -147,6 +147,7 @@ export default function IndiaOverviewMap() {
   const [allClaims, setAllClaims] = useState([]);
   const [selectedState, setSelectedState] = useState(resolveState("madhya_pradesh"));
   const [searchFilter, setSearchFilter] = useState("");
+  const [masksData, setMasksData] = useState(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [transitionTargetId, setTransitionTargetId] = useState(null);
   const [transitionTargetBounds, setTransitionTargetBounds] = useState(null);
@@ -165,6 +166,16 @@ export default function IndiaOverviewMap() {
       .catch((err) => {
         console.error("Error loading India states GeoJSON:", err);
         if (isMounted) setLoading(false);
+      });
+
+    fetchStateMasks()
+      .then((data) => {
+        if (isMounted && data) {
+          setMasksData(data);
+        }
+      })
+      .catch((err) => {
+        console.warn("Error loading state masks in IndiaOverviewMap:", err);
       });
 
     fetchEnrichedClaims()
@@ -203,8 +214,12 @@ export default function IndiaOverviewMap() {
     return s.stats;
   };
 
-  // Static geographic mask: single outer world polygon with all India states as holes
+  // Precomputed, certified WGS84 topological national exterior mask
   const indiaMaskGeoJSON = useMemo(() => {
+    if (masksData && masksData["INDIA_NATIONAL_MASK"]) {
+      return masksData["INDIA_NATIONAL_MASK"];
+    }
+
     if (!geoData || !geoData.features || geoData.features.length === 0) return null;
 
     const worldOuterRing = [
@@ -242,7 +257,7 @@ export default function IndiaOverviewMap() {
         coordinates: [worldOuterRing, ...holes],
       },
     };
-  }, [geoData]);
+  }, [masksData, geoData]);
 
   const handleStateClick = (stateId, explicitBounds = null) => {
     if (isTransitioning) return;

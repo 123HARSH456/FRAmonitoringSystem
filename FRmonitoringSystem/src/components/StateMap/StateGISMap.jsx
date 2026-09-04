@@ -138,40 +138,41 @@ function MapController({ stateFeature, state }) {
   return null;
 }
 
-// DistrictTooltipController: manages a single shared tooltip for all districts,
-// guaranteeing at most ONE active district tooltip and closing immediately on drag/pan/zoom/click.
+// Shared tooltip state controller for all district hovers
+// Guarantees at most ONE active district tooltip and closes immediately on drag/pan/zoom/click.
 function DistrictTooltipController() {
   const map = useMap();
+  const tooltipRef = useRef(null);
+  const isDraggingRef = useRef(false);
 
   useEffect(() => {
     if (!map) return;
 
-    // Singleton tooltip instance for all district hovers
     const districtTooltip = L.tooltip({
       className: "custom-leaflet-tooltip",
       opacity: 0.95,
       direction: "auto",
       interactive: false,
     });
-    map._districtTooltip = districtTooltip;
+    tooltipRef.current = districtTooltip;
 
     const closeDistrictTooltip = () => {
       try {
-        if (map._districtTooltip && map.hasLayer(map._districtTooltip)) {
-          map._districtTooltip.close();
+        if (tooltipRef.current && map.hasLayer(tooltipRef.current)) {
+          tooltipRef.current.close();
         }
-      } catch (err) {
+      } catch {
         // ignore
       }
     };
 
     const onMoveStart = () => {
-      map._isDraggingMap = true;
+      isDraggingRef.current = true;
       closeDistrictTooltip();
     };
 
     const onMoveEnd = () => {
-      map._isDraggingMap = false;
+      isDraggingRef.current = false;
       closeDistrictTooltip();
     };
 
@@ -180,7 +181,7 @@ function DistrictTooltipController() {
       closeDistrictTooltip();
     };
     const onMouseLeave = () => {
-      map._isDraggingMap = false;
+      isDraggingRef.current = false;
       closeDistrictTooltip();
     };
 
@@ -199,13 +200,12 @@ function DistrictTooltipController() {
         container.removeEventListener("mouseleave", onMouseLeave);
       }
       closeDistrictTooltip();
-      map._districtTooltip = null;
+      tooltipRef.current = null;
     };
   }, [map]);
 
   return null;
 }
-
 
 // Clean, compact div icon for claim markers with ML risk levels and visual emphasis for selected district
 function createClaimMarkerIcon(riskLevel, isSelected, isInSelectedDistrict) {
@@ -280,10 +280,11 @@ export default function StateGISMap({
 }) {
   const [geoData, setGeoData] = useState(null);
   const [districtsData, setDistrictsData] = useState(null);
+  const [masksData, setMasksData] = useState(null);
   const [loadingBoundary, setLoadingBoundary] = useState(true);
   const [districtsLoaded, setDistrictsLoaded] = useState(false);
 
-  // Load cached India States GeoJSON
+  // Load cached India States GeoJSON & precomputed exterior masks
   useEffect(() => {
     let isMounted = true;
     fetchIndiaGeoJSON()
@@ -297,6 +298,17 @@ export default function StateGISMap({
         console.error("Error loading boundary for state GIS:", err);
         if (isMounted) setLoadingBoundary(false);
       });
+
+    fetchStateMasks()
+      .then((data) => {
+        if (isMounted && data) {
+          setMasksData(data);
+        }
+      })
+      .catch((err) => {
+        console.warn("Error loading state masks in StateGISMap:", err);
+      });
+
     return () => {
       isMounted = false;
     };
@@ -319,10 +331,15 @@ export default function StateGISMap({
     };
   }, []);
 
-  // Find exact GeoJSON feature for this state (untouched real geometry)
+  // Find exact GeoJSON feature for this state (untouched official high-resolution curves)
   const stateFeature = useMemo(() => {
     return findStateFeature(geoData, state);
   }, [geoData, state]);
+
+  // Precomputed, certified WGS84 topological mask for this state
+  const stateMaskFeature = useMemo(() => {
+    return getStateExteriorMask(masksData, state);
+  }, [masksData, state]);
 
   // Filter districts strictly for this state (untouched real geometries from districts.geojson)
   const stateDistricts = useMemo(() => {
@@ -390,8 +407,27 @@ export default function StateGISMap({
           opacity={0.65}
         />
 
-        {/* 3. Stable Native Leaflet Mask: Created ONCE, zero flicker during drag/zoom */}
-        <StateExteriorMaskLayer stateFeature={stateFeature} stateId={state?.id} />
+        {/* 3. Stable Native Leaflet Mask: Precomputed topologically certified WGS84 inverted mask */}
+        <StateExteriorMaskLayer
+          stateFeature={stateFeature}
+          stateId={state?.id}
+          maskFeature={stateMaskFeature}
+        />
+
+        {/* 3b. Authentic Official State Outer Perimeter Border (High-Resolution Curves) */}
+        {stateFeature && (
+          <GeoJSON
+            key={`state-perimeter-${state.id}-${stateFeature.properties?.vertex_count || "hires"}`}
+            data={stateFeature}
+            style={{
+              fill: false,
+              color: "#DBAFA0",
+              weight: 2.2,
+              opacity: 0.95,
+              interactive: false,
+            }}
+          />
+        )}
 
         {/* 4. District Boundaries Layer: Exactly as in districts.geojson with visual selection highlight */}
         {stateDistricts && (

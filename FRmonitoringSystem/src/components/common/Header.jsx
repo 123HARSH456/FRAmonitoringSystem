@@ -1,5 +1,6 @@
-import { Shield, ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
+import canopyLogo from "../../assets/canopy-logo.jpg";
 
 export default function Header() {
   const location = useLocation();
@@ -10,8 +11,12 @@ export default function Header() {
       <div className="w-full flex items-center justify-between">
         {/* Simple Branding */}
         <Link to="/" className="flex items-center gap-2.5 group">
-          <div className="w-8 h-8 rounded-lg bg-[#49243E]/70 border border-[#BB8493]/40 flex items-center justify-center text-[#DBAFA0] group-hover:border-[#DBAFA0] group-hover:bg-[#704264]/60 transition-all">
-            <Shield className="w-4 h-4" />
+          <div className="w-9 h-9 rounded-full overflow-hidden border border-[#BB8493]/50 shadow-sm shadow-black/50 flex items-center justify-center bg-[#241120] group-hover:border-[#DBAFA0] group-hover:ring-2 group-hover:ring-[#DBAFA0]/40 transition-all shrink-0">
+            <img
+              src={canopyLogo}
+              alt="CANOPY Logo"
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            />
           </div>
           <div className="flex items-baseline gap-2">
             <span className="text-base font-bold tracking-tight text-white group-hover:text-[#DBAFA0] transition-colors">
