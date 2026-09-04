@@ -10,7 +10,7 @@ import {
 } from "../../services/claimsService";
 import { formatNumber, formatArea } from "../../utils/formatters";
 import StateGISMap from "../../components/StateMap/StateGISMap";
-import GeminiClaimExplanation from "../../components/ClaimPanel/GeminiClaimExplanation";
+import ClaimStructuredEvidence from "../../components/ClaimPanel/ClaimStructuredEvidence";
 import { ArrowLeft } from "lucide-react";
 
 export default function StateMonitoringPage() {
@@ -218,106 +218,17 @@ export default function StateMonitoringPage() {
               )}
             </div>
 
-            {/* Compact Claim Details Panel (Contains all 10 required fields) */}
+            {/* Structured Forensic Evidence Dossier */}
             {activeClaim ? (
-              <div className="border-t border-[#49243E]/80 pt-3 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="text-[10px] uppercase text-[#DBAFA0] font-semibold tracking-wider">
-                    Claim Details
-                  </div>
-                  <span
-                    className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider ${
-                      activeClaim.riskLevel === "HIGH"
-                        ? "bg-rose-950/80 text-rose-300 border border-rose-600 shadow-[0_0_8px_rgba(244,63,94,0.4)]"
-                        : activeClaim.riskLevel === "MEDIUM"
-                        ? "bg-amber-950/80 text-amber-300 border border-amber-600 shadow-[0_0_8px_rgba(245,158,11,0.3)]"
-                        : "bg-emerald-950/80 text-emerald-300 border border-emerald-600 shadow-[0_0_8px_rgba(16,185,129,0.3)]"
-                    }`}
-                  >
-                    {activeClaim.riskLevel} Risk
-                  </span>
-                </div>
-
-                {/* 10 Required Items Table */}
-                <div className="space-y-1.5 text-xs">
-                  <div className="flex justify-between py-1 border-b border-[#49243E]/60">
-                    <span className="text-[#c2a3b0]">Claim ID:</span>
-                    <span className="font-bold text-white">{activeClaim.claimId}</span>
-                  </div>
-                  <div className="flex justify-between py-1 border-b border-[#49243E]/60">
-                    <span className="text-[#c2a3b0]">State:</span>
-                    <span className="font-semibold text-slate-200">{activeClaim.state}</span>
-                  </div>
-                  <div className="flex justify-between py-1 border-b border-[#49243E]/60">
-                    <span className="text-[#c2a3b0]">District:</span>
-                    <span className="font-semibold text-[#DBAFA0]">{activeClaim.district}</span>
-                  </div>
-                  <div className="flex justify-between py-1 border-b border-[#49243E]/60">
-                    <span className="text-[#c2a3b0]">Claimed Area:</span>
-                    <span className="font-semibold text-white">{formatArea(activeClaim.claimedArea)}</span>
-                  </div>
-                  <div className="flex justify-between py-1 border-b border-[#49243E]/60">
-                    <span className="text-[#c2a3b0]">Recorded Area:</span>
-                    <span className="font-semibold text-white">{formatArea(activeClaim.recordedArea)}</span>
-                  </div>
-                  <div className="flex justify-between py-1 border-b border-[#49243E]/60">
-                    <span className="text-[#c2a3b0]">Area Mismatch:</span>
-                    <span
-                      className={`font-semibold ${
-                        activeClaim.areaMismatch > 20 ? "text-rose-400 font-bold" : "text-slate-200"
-                      }`}
-                    >
-                      {activeClaim.areaMismatch.toFixed(1)}%
-                    </span>
-                  </div>
-                  <div className="flex justify-between py-1 border-b border-[#49243E]/60">
-                    <span className="text-[#c2a3b0]">Processing Days:</span>
-                    <span
-                      className={`font-semibold ${
-                        activeClaim.processingDays > 200 ? "text-amber-400" : "text-slate-200"
-                      }`}
-                    >
-                      {activeClaim.processingDays} days
-                    </span>
-                  </div>
-                  <div className="flex justify-between py-1 border-b border-[#49243E]/60">
-                    <span className="text-[#c2a3b0]">Land-Cover Change:</span>
-                    <span
-                      className={`font-semibold ${
-                        activeClaim.landCoverChange < -15 ? "text-rose-400" : "text-emerald-400"
-                      }`}
-                    >
-                      {activeClaim.landCoverChange > 0 ? "+" : ""}
-                      {activeClaim.landCoverChange.toFixed(1)}%
-                    </span>
-                  </div>
-                  <div className="flex justify-between py-1 border-b border-[#49243E]/60">
-                    <span className="text-[#c2a3b0]">ML Anomaly Score:</span>
-                    <span className="font-bold text-[#DBAFA0]">
-                      {activeClaim.mlScore.toFixed(1)} / 100
-                    </span>
-                  </div>
-                  <div className="flex justify-between py-1">
-                    <span className="text-[#c2a3b0]">Risk Level:</span>
-                    <span
-                      className={`font-bold ${
-                        activeClaim.riskLevel === "HIGH"
-                          ? "text-rose-400"
-                          : activeClaim.riskLevel === "MEDIUM"
-                          ? "text-amber-400"
-                          : "text-emerald-400"
-                      }`}
-                    >
-                      {activeClaim.riskLevel}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Gemini AI Evidence Explanation Layer */}
-                <GeminiClaimExplanation key={activeClaim.claimId} claim={activeClaim} />
+              <div className="border-t border-[#49243E]/80 pt-3">
+                <ClaimStructuredEvidence
+                  key={activeClaim.claimId}
+                  claim={activeClaim}
+                  onClearSelection={() => setSelectedClaim(null)}
+                />
               </div>
             ) : (
-              <div className="border-t border-slate-800 pt-3 text-slate-400 text-xs">
+              <div className="border-t border-[#49243E]/80 pt-3 text-[#c2a3b0] text-xs font-mono">
                 {loadingClaims
                   ? "Loading claims & ML scores..."
                   : "Click any claim marker or district polygon on the map to inspect."}

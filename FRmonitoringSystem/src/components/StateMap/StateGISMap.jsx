@@ -396,6 +396,7 @@ export default function StateGISMap({
         center={state.center}
         zoom={state.zoom}
         scrollWheelZoom={true}
+        attributionControl={false}
         className="w-full h-full !bg-[#180b15]"
       >
         <MapController stateFeature={stateFeature} state={state} />
@@ -403,14 +404,14 @@ export default function StateGISMap({
 
         {/* 1. Esri World Imagery (High-Resolution Satellite) */}
         <TileLayer
-          attribution="Tiles &copy; Esri"
+          attribution=""
           url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
           maxZoom={18}
         />
 
         {/* 2. Esri Place labels overlay */}
         <TileLayer
-          attribution="&copy; Esri"
+          attribution=""
           url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
           maxZoom={18}
           opacity={0.65}

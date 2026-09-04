@@ -395,6 +395,7 @@ export default function IndiaOverviewMap() {
           maxBoundsViscosity={1.0}
           scrollWheelZoom={!isTransitioning}
           zoomControl={true}
+          attributionControl={false}
           className="w-full h-full z-0 !bg-[#180b15]"
         >
           {/* Inject high-tech pattern defs for the static mask */}
@@ -416,7 +417,7 @@ export default function IndiaOverviewMap() {
           {/* Satellite Basemap: Real World Imagery */}
           <TileLayer
             url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-            attribution="&copy; Esri &mdash; National Geographic, Esri, DeLorme, NAVTEQ"
+            attribution=""
             maxZoom={18}
           />
 

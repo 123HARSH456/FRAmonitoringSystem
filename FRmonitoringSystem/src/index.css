@@ -114,15 +114,12 @@ body {
   background: #241120 !important;
 }
 
-.leaflet-container .leaflet-control-attribution {
-  background: rgba(24, 11, 21, 0.85) !important;
-  color: #c2a3b0 !important;
-  font-size: 10px !important;
-  border-top-left-radius: 4px;
-}
-
-.leaflet-container .leaflet-control-attribution a {
-  color: #DBAFA0 !important;
+.leaflet-container .leaflet-control-attribution,
+.leaflet-control-attribution {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
 }
 
 /* Anomaly marker pulses */

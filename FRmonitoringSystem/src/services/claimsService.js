@@ -70,7 +70,8 @@ export async function fetchEnrichedClaims() {
       district: p.district || "",
       village: p.village || "",
       claimant: p.claimant || "",
-      claimType: p.claimType || "IFR",
+      claimantName: p.claimant || p.claimantName || "Beneficiary Record",
+      claimType: p.claimType || "IFR (Individual Forest Rights)",
       claimedArea,
       recordedArea,
       claimedAreaHa: claimedArea,
@@ -88,6 +89,11 @@ export async function fetchEnrichedClaims() {
       geometry: f.geometry,
       isSynthetic: true,
       datasetType: "DEMO_SYNTHETIC",
+      anomalyType: p.anomalyType || (ml.predictedAnomaly ? "STATISTICAL_OUTLIER" : "NONE"),
+      anomalyDescription: p.anomalyDescription || "",
+      submissionDate: p.submissionDate || "2025-01-15",
+      severity: p.severity || (riskLevel === "HIGH" ? "critical" : riskLevel === "MEDIUM" ? "review" : "normal"),
+      isAnomalous: Boolean(p.isAnomalous || ml.predictedAnomaly),
     };
   });
 
