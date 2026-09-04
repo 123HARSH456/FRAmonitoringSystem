@@ -498,98 +498,167 @@ export default function IndiaOverviewMap() {
 
       {/* Contextual Information Panel - 40% width with scrollable All-India State Jump */}
       <div className="w-full lg:w-[40%] flex flex-col gap-3 lg:overflow-y-auto pr-0 lg:pr-1">
-        {/* State Metrics Card */}
-        <div className="glass-panel rounded-xl p-4 border border-slate-800 space-y-3.5 shrink-0">
-          <div>
+        {/* State Overview / Claims Monitoring Card */}
+        <div className="glass-panel rounded-xl p-4 border border-slate-800 space-y-3.5 shrink-0 font-mono text-xs">
+          {/* Header & Spatial Identifier */}
+          <div className="pb-3 border-b border-slate-800/80">
             <div className="flex items-center justify-between">
-              <div className="text-[10px] font-mono uppercase text-cyan-400 font-semibold tracking-wider">
-                Selected State
-              </div>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-700">
-                {selectedState.code} • {selectedStateStats.districtsCount || selectedState.districts?.length || 0} Districts
+              <span className="text-[10px] uppercase text-cyan-400 font-semibold tracking-wider">
+                Selected State &bull; Claims Registry
+              </span>
+              <span className="text-[10px] px-2 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-700">
+                {selectedState.code}
               </span>
             </div>
-            <h3 className="text-xl font-bold text-white mt-0.5">
-              {selectedState.name}
-            </h3>
-            {selectedState.description && (
-              <p className="text-xs text-slate-400 mt-1 line-clamp-2 leading-relaxed">
-                {selectedState.description}
-              </p>
-            )}
+            <div className="flex items-baseline justify-between mt-1">
+              <h3 className="text-xl font-bold font-sans text-white tracking-tight">
+                {selectedState.name}
+              </h3>
+              <span className="text-xs text-slate-400">
+                {selectedStateStats.totalClaims} {selectedStateStats.totalClaims === 1 ? "claim" : "claims"}
+              </span>
+            </div>
           </div>
 
-          {/* Valid & Real FRA Claims & Anomaly Metrics */}
-          <div className="space-y-2 font-mono text-xs">
-            <div className="flex justify-between py-1 border-b border-slate-800">
-              <span className="text-slate-400">Total Monitored Claims:</span>
-              <span className="font-bold text-white text-sm">
-                {formatNumber(selectedStateStats.totalClaims)}
-              </span>
-            </div>
-
-            <div className="flex justify-between py-1 border-b border-slate-800">
-              <span className="text-slate-400">Title Granted / Approved:</span>
-              <span className="font-bold text-emerald-400 text-sm">
-                {formatNumber(selectedStateStats.approvedClaims || 0)}
-              </span>
-            </div>
-
-            <div className="flex justify-between py-1 border-b border-slate-800">
-              <span className="text-slate-400">Pending Verification:</span>
-              <span className="font-bold text-blue-400 text-sm">
-                {formatNumber(selectedStateStats.pendingClaims)}
-              </span>
-            </div>
-
-            <div className="flex justify-between py-1 border-b border-slate-800">
-              <span className="text-slate-400">ML Detected Anomalies:</span>
-              <span className="font-bold text-amber-400 text-sm">
-                {formatNumber(selectedStateStats.anomalies)}
-              </span>
-            </div>
-
-            {selectedStateStats.criticalAnomalies > 0 ? (
-              <div className="flex justify-between py-1 border-b border-slate-800">
-                <span className="text-rose-400 flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping inline-block" />
-                  Critical Alerts (High Risk):
-                </span>
-                <span className="font-bold text-rose-400 text-sm">
-                  {selectedStateStats.criticalAnomalies}
-                </span>
+          {/* Claim Volume & Spatial Coverage */}
+          <div className="grid grid-cols-3 gap-2">
+            <div className="p-2 rounded-lg bg-slate-900/60 border border-slate-800">
+              <div className="text-[10px] text-slate-400 uppercase tracking-wider truncate" title="Total Forest Area Claimed">
+                Total Forest Area
               </div>
-            ) : (
-              <div className="flex justify-between py-1 border-b border-slate-800">
-                <span className="text-emerald-400">Critical Alerts:</span>
-                <span className="font-semibold text-emerald-400 text-sm">
-                  0 (Compliant)
-                </span>
+              <div className="text-sm font-bold text-white mt-0.5">
+                {formatNumber(selectedStateStats.totalAreaHa)} <span className="text-[10px] text-slate-400 font-normal">ha</span>
               </div>
-            )}
+              <div className="text-[9px] text-slate-500 mt-0.5">Claimed forest land</div>
+            </div>
 
-            {/* FSI Forest Cover & Census Tribal Demographic Context */}
-            <div className="grid grid-cols-2 gap-2 pt-1">
-              <div className="p-2 rounded bg-slate-900/80 border border-slate-800">
-                <div className="text-[10px] text-slate-500">Forest Cover (FSI)</div>
-                <div className="font-semibold text-slate-200 mt-0.5">
-                  {selectedState.stats.forestCoverKm2 ? `${formatNumber(selectedState.stats.forestCoverKm2)} km²` : "N/A"}
-                </div>
+            <div className="p-2 rounded-lg bg-slate-900/60 border border-slate-800">
+              <div className="text-[10px] text-slate-400 uppercase tracking-wider">Districts</div>
+              <div className="text-sm font-bold text-white mt-0.5">
+                {selectedStateStats.districtsCount || 0} <span className="text-[10px] text-slate-400 font-normal">active</span>
               </div>
-              <div className="p-2 rounded bg-slate-900/80 border border-slate-800">
-                <div className="text-[10px] text-slate-500">Tribal Population</div>
-                <div className="font-semibold text-slate-200 mt-0.5">
-                  {selectedState.stats.tribalPopulationPercent !== undefined ? `${selectedState.stats.tribalPopulationPercent}%` : "N/A"}
-                </div>
+              <div className="text-[9px] text-slate-500 mt-0.5">
+                {selectedStateStats.villagesCount ? `${selectedStateStats.villagesCount} villages` : "Spatial coverage"}
+              </div>
+            </div>
+
+            <div className="p-2 rounded-lg bg-slate-900/60 border border-slate-800">
+              <div className="text-[10px] text-slate-400 uppercase tracking-wider">Tenure Types</div>
+              <div className="text-sm font-bold text-white mt-0.5">
+                {selectedStateStats.ifrCount || 0} <span className="text-[10px] text-slate-400 font-normal">IFR</span>
+              </div>
+              <div className="text-[9px] text-slate-500 mt-0.5">
+                {selectedStateStats.cfrCount || 0} CFR
               </div>
             </div>
           </div>
 
-          {/* Dynamic AI / Spatial Assessment */}
-          <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 text-xs text-slate-300 leading-relaxed">
-            {selectedStateStats.criticalAnomalies > 0
-              ? `${selectedStateStats.criticalAnomalies} high-risk claims flagged by ML for field boundary verification. ${selectedStateStats.pendingClaims} pending review across ${selectedStateStats.districtsCount || 0} districts.`
-              : `All spatial bounds verified. ${selectedStateStats.approvedClaims || 0} titles granted with zero high-risk anomalies.`}
+          {/* Claim Review Pipeline Breakdown */}
+          <div className="space-y-1.5 p-2.5 rounded-lg bg-slate-900/40 border border-slate-800/80">
+            <div className="flex items-center justify-between text-[11px] mb-1">
+              <span className="text-slate-300 font-semibold uppercase tracking-wider text-[10px]">
+                Review Pipeline
+              </span>
+              <span className="text-slate-400 text-[10px]">
+                {Math.round(((selectedStateStats.approvedClaims || 0) / (selectedStateStats.totalClaims || 1)) * 100)}% Resolved
+              </span>
+            </div>
+
+            {/* Segmented Pipeline Bar */}
+            <div className="w-full h-1.5 rounded-full bg-slate-950 overflow-hidden flex">
+              <div
+                style={{ width: `${((selectedStateStats.approvedClaims || 0) / (selectedStateStats.totalClaims || 1)) * 100}%` }}
+                className="h-full bg-emerald-500"
+              />
+              <div
+                style={{ width: `${((selectedStateStats.pendingClaims || 0) / (selectedStateStats.totalClaims || 1)) * 100}%` }}
+                className="h-full bg-blue-500"
+              />
+              <div
+                style={{ width: `${((selectedStateStats.rejectedClaims || 0) / (selectedStateStats.totalClaims || 1)) * 100}%` }}
+                className="h-full bg-slate-600"
+              />
+            </div>
+
+            <div className="grid grid-cols-3 gap-1 pt-1 text-[10px]">
+              <div className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                <span className="text-slate-400">Approved:</span>
+                <span className="font-bold text-emerald-400">{selectedStateStats.approvedClaims || 0}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                <span className="text-slate-400">Pending:</span>
+                <span className="font-bold text-blue-400">{selectedStateStats.pendingClaims || 0}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />
+                <span className="text-slate-400">Rejected:</span>
+                <span className="font-bold text-slate-300">{selectedStateStats.rejectedClaims || 0}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* ML Anomaly Risk Distribution */}
+          <div className="space-y-2 p-2.5 rounded-lg bg-slate-900/40 border border-slate-800/80">
+            <div className="flex items-center justify-between">
+              <span className="text-slate-300 font-semibold uppercase tracking-wider text-[10px]">
+                Isolation Forest Risk Distribution
+              </span>
+              <span className="text-[10px] text-amber-400 font-semibold">
+                {selectedStateStats.anomalies || 0} Flagged
+              </span>
+            </div>
+
+            <div className="grid grid-cols-3 gap-1.5 text-center text-[10px]">
+              <div className="p-1.5 rounded bg-rose-950/30 border border-rose-900/50">
+                <div className="text-rose-400 font-semibold uppercase tracking-wider text-[9px]">High Risk</div>
+                <div className="text-sm font-bold text-rose-300 mt-0.5">
+                  {selectedStateStats.criticalAnomalies || 0}
+                </div>
+                <div className="text-[9px] text-rose-400/70">
+                  {Math.round(((selectedStateStats.criticalAnomalies || 0) / (selectedStateStats.totalClaims || 1)) * 100)}%
+                </div>
+              </div>
+
+              <div className="p-1.5 rounded bg-amber-950/30 border border-amber-900/50">
+                <div className="text-amber-400 font-semibold uppercase tracking-wider text-[9px]">Medium Risk</div>
+                <div className="text-sm font-bold text-amber-300 mt-0.5">
+                  {selectedStateStats.mediumAnomalies || 0}
+                </div>
+                <div className="text-[9px] text-amber-400/70">
+                  {Math.round(((selectedStateStats.mediumAnomalies || 0) / (selectedStateStats.totalClaims || 1)) * 100)}%
+                </div>
+              </div>
+
+              <div className="p-1.5 rounded bg-emerald-950/30 border border-emerald-900/50">
+                <div className="text-emerald-400 font-semibold uppercase tracking-wider text-[9px]">Low Risk</div>
+                <div className="text-sm font-bold text-emerald-300 mt-0.5">
+                  {selectedStateStats.lowAnomalies || 0}
+                </div>
+                <div className="text-[9px] text-emerald-400/70">
+                  {Math.round(((selectedStateStats.lowAnomalies || 0) / (selectedStateStats.totalClaims || 1)) * 100)}%
+                </div>
+              </div>
+            </div>
+
+            <p className="text-[10px] text-slate-400 leading-relaxed pt-0.5">
+              The unsupervised Isolation Forest model detects unusual combinations across available claim features (claimed vs. recorded area mismatch, processing duration, and land cover variance). HIGH and MEDIUM risk ratings highlight records that deviate from baseline distributions.
+            </p>
+          </div>
+
+          {/* Data Provenance & Scope Disclaimer */}
+          <div className="p-2.5 rounded-lg bg-slate-950/90 border border-slate-800 text-[10px] text-slate-400 space-y-1">
+            <div className="flex items-center gap-1.5 text-slate-300 font-semibold">
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+              <span>Data Provenance &amp; Limitations</span>
+            </div>
+            <p className="leading-normal">
+              State boundaries are rendered from actual geographic GeoJSON boundaries. Claim parcels are synthetic demonstration records generated for Decision Support evaluation.
+            </p>
+            <p className="text-cyan-300/90 font-medium pt-0.5">
+              Risk scores indicate unusual patterns for human review; they do not establish fraud.
+            </p>
           </div>
 
           {/* Action button */}
@@ -605,7 +674,7 @@ export default function IndiaOverviewMap() {
             <span>
               {isTransitioning
                 ? `Transitioning to ${selectedState.name}...`
-                : `View ${selectedState.name} Monitoring (${selectedStateStats.totalClaims} Claims)`}
+                : `View ${selectedState.name} Monitoring`}
             </span>
             <ChevronRight className={`w-4 h-4 ${isTransitioning ? "animate-pulse" : ""}`} />
           </button>

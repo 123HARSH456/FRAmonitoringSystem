@@ -198,11 +198,22 @@ export function computeStateMetrics(stateClaims) {
   let medium = 0;
   let low = 0;
   let totalArea = 0;
+  let ifrCount = 0;
+  let cfrCount = 0;
   const districts = new Set();
+  const villages = new Set();
 
   for (const c of stateClaims) {
     if (c.district) districts.add(c.district);
+    if (c.village) villages.add(c.village);
     totalArea += Number(c.claimedArea ?? c.claimedAreaHa ?? 0);
+
+    const ctype = (c.claimType || "").toLowerCase();
+    if (ctype.includes("cfr") || ctype.includes("community")) {
+      cfrCount++;
+    } else {
+      ifrCount++;
+    }
 
     const status = (c.status || "").toLowerCase();
     if (
@@ -238,9 +249,15 @@ export function computeStateMetrics(stateClaims) {
     rejectedClaims: rejected,
     anomalies,
     criticalAnomalies: high,
+    highRisk: high,
+    mediumRisk: medium,
+    lowRisk: low,
     mediumAnomalies: medium,
     lowAnomalies: low,
     districtsCount: districts.size,
+    villagesCount: villages.size,
+    ifrCount,
+    cfrCount,
     totalAreaHa: Number(totalArea.toFixed(1)),
   };
 }
