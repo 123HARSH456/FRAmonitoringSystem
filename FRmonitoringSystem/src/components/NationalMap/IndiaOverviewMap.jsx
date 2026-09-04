@@ -502,13 +502,13 @@ export default function IndiaOverviewMap() {
       {/* Contextual Information Panel - 40% width with scrollable All-India State Jump */}
       <div className="w-full lg:w-[40%] flex flex-col gap-3 lg:overflow-y-auto pr-0 lg:pr-1">
         {/* State Metrics Card */}
-        <div className="glass-panel rounded-xl p-4 border border-slate-800 space-y-3.5 shrink-0">
+        <div className="glass-panel rounded-xl p-4 border border-[#49243E]/80 space-y-3.5 shrink-0">
           <div>
             <div className="flex items-center justify-between">
-              <div className="text-[10px] font-mono uppercase text-cyan-400 font-semibold tracking-wider">
+              <div className="text-[10px] font-mono uppercase text-[#DBAFA0] font-semibold tracking-wider">
                 Selected State
               </div>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-700">
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#241120] text-[#c2a3b0] border border-[#49243E]">
                 {selectedState.code} • {selectedStateStats.districtsCount || selectedState.districts?.length || 0} Districts
               </span>
             </div>
@@ -516,78 +516,77 @@ export default function IndiaOverviewMap() {
               {selectedState.name}
             </h3>
             {selectedState.description && (
-              <p className="text-xs text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+              <p className="text-xs text-[#c2a3b0] mt-1 line-clamp-2 leading-relaxed">
                 {selectedState.description}
               </p>
             )}
           </div>
 
-          {/* Valid & Real FRA Claims & Anomaly Metrics */}
-          <div className="space-y-2 font-mono text-xs">
-            <div className="flex justify-between py-1 border-b border-slate-800">
-              <span className="text-slate-400">Total Monitored Claims:</span>
-              <span className="font-bold text-white text-sm">
-                {formatNumber(selectedStateStats.totalClaims)}
-              </span>
-            </div>
-          </div>
-
           {/* Claim Volume & Spatial Coverage */}
           <div className="grid grid-cols-3 gap-2">
-            <div className="p-2 rounded-lg bg-slate-900/60 border border-slate-800">
-              <div className="text-[10px] text-slate-400 uppercase tracking-wider truncate" title="Total Forest Area Claimed">
+            <div className="p-2 rounded-lg bg-[#241120]/60 border border-[#49243E]/60">
+              <div className="text-[10px] text-[#c2a3b0] uppercase tracking-wider truncate" title="Total Forest Area Claimed">
                 Total Forest Area
               </div>
               <div className="text-sm font-bold text-white mt-0.5">
-                {formatNumber(selectedStateStats.totalAreaHa)} <span className="text-[10px] text-slate-400 font-normal">ha</span>
+                {formatNumber(selectedStateStats.totalAreaHa)} <span className="text-[10px] text-[#c2a3b0] font-normal">ha</span>
               </div>
-              <div className="text-[9px] text-slate-500 mt-0.5">Claimed forest land</div>
+              <div className="text-[9px] text-[#c2a3b0]/70 mt-0.5">Claimed forest land</div>
             </div>
 
-            <div className="p-2 rounded-lg bg-slate-900/60 border border-slate-800">
-              <div className="text-[10px] text-slate-400 uppercase tracking-wider">Districts</div>
+            <div className="p-2 rounded-lg bg-[#241120]/60 border border-[#49243E]/60">
+              <div className="text-[10px] text-[#c2a3b0] uppercase tracking-wider">Districts</div>
               <div className="text-sm font-bold text-white mt-0.5">
-                {selectedStateStats.districtsCount || 0} <span className="text-[10px] text-slate-400 font-normal">active</span>
+                {selectedStateStats.districtsCount || 0} <span className="text-[10px] text-[#c2a3b0] font-normal">active</span>
               </div>
-              <div className="text-[9px] text-slate-500 mt-0.5">
+              <div className="text-[9px] text-[#c2a3b0]/70 mt-0.5">
                 {selectedStateStats.villagesCount ? `${selectedStateStats.villagesCount} villages` : "Spatial coverage"}
               </div>
             </div>
 
-            <div className="p-2 rounded-lg bg-slate-900/60 border border-slate-800">
-              <div className="text-[10px] text-slate-400 uppercase tracking-wider">Tenure Types</div>
+            <div className="p-2 rounded-lg bg-[#241120]/60 border border-[#49243E]/60">
+              <div className="text-[10px] text-[#c2a3b0] uppercase tracking-wider">Tenure Types</div>
               <div className="text-sm font-bold text-white mt-0.5">
-                {selectedStateStats.ifrCount || 0} <span className="text-[10px] text-slate-400 font-normal">IFR</span>
+                {selectedStateStats.ifrCount || 0} <span className="text-[10px] text-[#c2a3b0] font-normal">IFR</span>
               </div>
-              <div className="text-[9px] text-slate-500 mt-0.5">
+              <div className="text-[9px] text-[#c2a3b0]/70 mt-0.5">
                 {selectedStateStats.cfrCount || 0} CFR
               </div>
             </div>
           </div>
 
-            <div className="flex justify-between py-1 border-b border-slate-800">
-              <span className="text-slate-400">Title Granted / Approved:</span>
+          {/* Valid & Real FRA Claims & Anomaly Metrics */}
+          <div className="space-y-2 font-mono text-xs">
+            <div className="flex justify-between py-1 border-b border-[#49243E]/60">
+              <span className="text-[#c2a3b0]">Total Monitored Claims:</span>
+              <span className="font-bold text-white text-sm">
+                {formatNumber(selectedStateStats.totalClaims)}
+              </span>
+            </div>
+
+            <div className="flex justify-between py-1 border-b border-[#49243E]/60">
+              <span className="text-[#c2a3b0]">Title Granted / Approved:</span>
               <span className="font-bold text-emerald-400 text-sm">
                 {formatNumber(selectedStateStats.approvedClaims || 0)}
               </span>
             </div>
 
-            <div className="flex justify-between py-1 border-b border-slate-800">
-              <span className="text-slate-400">Pending Verification:</span>
-              <span className="font-bold text-blue-400 text-sm">
+            <div className="flex justify-between py-1 border-b border-[#49243E]/60">
+              <span className="text-[#c2a3b0]">Pending Verification:</span>
+              <span className="font-bold text-[#BB8493] text-sm">
                 {formatNumber(selectedStateStats.pendingClaims)}
               </span>
             </div>
 
-            <div className="flex justify-between py-1 border-b border-slate-800">
-              <span className="text-slate-400">ML Detected Anomalies:</span>
-              <span className="font-bold text-amber-400 text-sm">
+            <div className="flex justify-between py-1 border-b border-[#49243E]/60">
+              <span className="text-[#c2a3b0]">ML Detected Anomalies:</span>
+              <span className="font-bold text-[#DBAFA0] text-sm">
                 {formatNumber(selectedStateStats.anomalies)}
               </span>
             </div>
 
             {selectedStateStats.criticalAnomalies > 0 ? (
-              <div className="flex justify-between py-1 border-b border-slate-800">
+              <div className="flex justify-between py-1 border-b border-[#49243E]/60">
                 <span className="text-rose-400 flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping inline-block" />
                   Critical Alerts (High Risk):
@@ -597,7 +596,7 @@ export default function IndiaOverviewMap() {
                 </span>
               </div>
             ) : (
-              <div className="flex justify-between py-1 border-b border-slate-800">
+              <div className="flex justify-between py-1 border-b border-[#49243E]/60">
                 <span className="text-emerald-400">Critical Alerts:</span>
                 <span className="font-semibold text-emerald-400 text-sm">
                   0 (Compliant)
@@ -607,14 +606,14 @@ export default function IndiaOverviewMap() {
 
             {/* FSI Forest Cover & Census Tribal Demographic Context */}
             <div className="grid grid-cols-2 gap-2 pt-1">
-              <div className="p-2 rounded bg-slate-900/80 border border-slate-800">
-                <div className="text-[10px] text-slate-500">Forest Cover (FSI)</div>
+              <div className="p-2 rounded bg-[#241120] border border-[#49243E]/60">
+                <div className="text-[10px] text-[#c2a3b0]/70">Forest Cover (FSI)</div>
                 <div className="font-semibold text-slate-200 mt-0.5">
                   {selectedState.stats.forestCoverKm2 ? `${formatNumber(selectedState.stats.forestCoverKm2)} km²` : "N/A"}
                 </div>
               </div>
-              <div className="p-2 rounded bg-slate-900/80 border border-slate-800">
-                <div className="text-[10px] text-slate-500">Tribal Population</div>
+              <div className="p-2 rounded bg-[#241120] border border-[#49243E]/60">
+                <div className="text-[10px] text-[#c2a3b0]/70">Tribal Population</div>
                 <div className="font-semibold text-slate-200 mt-0.5">
                   {selectedState.stats.tribalPopulationPercent !== undefined ? `${selectedState.stats.tribalPopulationPercent}%` : "N/A"}
                 </div>
@@ -623,7 +622,7 @@ export default function IndiaOverviewMap() {
           </div>
 
           {/* Dynamic AI / Spatial Assessment */}
-          <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 text-xs text-slate-300 leading-relaxed">
+          <div className="p-2.5 rounded-lg bg-[#241120] border border-[#49243E]/80 text-xs text-[#c2a3b0] leading-relaxed">
             {selectedStateStats.criticalAnomalies > 0
               ? `${selectedStateStats.criticalAnomalies} high-risk claims flagged by ML for field boundary verification. ${selectedStateStats.pendingClaims} pending review across ${selectedStateStats.districtsCount || 0} districts.`
               : `All spatial bounds verified. ${selectedStateStats.approvedClaims || 0} titles granted with zero high-risk anomalies.`}
@@ -642,7 +641,7 @@ export default function IndiaOverviewMap() {
             <span>
               {isTransitioning
                 ? `Transitioning to ${selectedState.name}...`
-                : `View ${selectedState.name} Monitoring`}
+                : `View ${selectedState.name} Monitoring (${selectedStateStats.totalClaims} Claims)`}
             </span>
             <ChevronRight className={`w-4 h-4 ${isTransitioning ? "animate-pulse" : ""}`} />
           </button>
