@@ -165,80 +165,74 @@ function MapController({ stateFeature, state }) {
   return null;
 }
 
-// DistrictTooltipController: guarantees at most ONE active district tooltip and closes on drag/zoom/click
+// DistrictTooltipController: manages a single shared tooltip for all districts,
+// guaranteeing at most ONE active district tooltip and closing immediately on drag/pan/zoom/click.
 function DistrictTooltipController() {
   const map = useMap();
 
   useEffect(() => {
     if (!map) return;
 
-    const closeAll = () => {
-      map._isDraggingMap = true;
-      if (map._activeDistrictLayer) {
-        try {
-          map._activeDistrictLayer.closeTooltip();
-        } catch (e) {
-          // ignore
-        }
-        map._activeDistrictLayer = null;
-      }
+    // Singleton tooltip instance for all district hovers
+    const districtTooltip = L.tooltip({
+      className: "custom-leaflet-tooltip",
+      opacity: 0.95,
+      direction: "auto",
+      interactive: false,
+    });
+    map._districtTooltip = districtTooltip;
+
+    const closeDistrictTooltip = () => {
       try {
-        map.closeTooltip();
-      } catch (e) {
+        if (map._districtTooltip && map.hasLayer(map._districtTooltip)) {
+          map._districtTooltip.close();
+        }
+      } catch (err) {
         // ignore
       }
-      map.eachLayer((layer) => {
-        if (layer && typeof layer.closeTooltip === "function") {
-          try {
-            layer.closeTooltip();
-          } catch (e) {
-            // ignore
-          }
-        }
-      });
+    };
+
+    const onMoveStart = () => {
+      map._isDraggingMap = true;
+      closeDistrictTooltip();
     };
 
     const onMoveEnd = () => {
       map._isDraggingMap = false;
-      if (map._activeDistrictLayer) {
-        try {
-          map._activeDistrictLayer.closeTooltip();
-        } catch (e) {
-          // ignore
-        }
-        map._activeDistrictLayer = null;
-      }
-      try {
-        map.closeTooltip();
-      } catch (e) {
-        // ignore
-      }
+      closeDistrictTooltip();
     };
 
     const container = map.getContainer();
+    const onMouseDown = () => {
+      closeDistrictTooltip();
+    };
     const onMouseLeave = () => {
-      closeAll();
       map._isDraggingMap = false;
+      closeDistrictTooltip();
     };
 
-    map.on("dragstart movestart zoomstart", closeAll);
+    map.on("dragstart movestart zoomstart", onMoveStart);
     map.on("dragend moveend zoomend", onMoveEnd);
     if (container) {
+      container.addEventListener("mousedown", onMouseDown);
       container.addEventListener("mouseleave", onMouseLeave);
     }
 
     return () => {
-      map.off("dragstart movestart zoomstart", closeAll);
+      map.off("dragstart movestart zoomstart", onMoveStart);
       map.off("dragend moveend zoomend", onMoveEnd);
       if (container) {
+        container.removeEventListener("mousedown", onMouseDown);
         container.removeEventListener("mouseleave", onMouseLeave);
       }
-      closeAll();
+      closeDistrictTooltip();
+      map._districtTooltip = null;
     };
   }, [map]);
 
   return null;
 }
+
 
 // Clean, compact div icon for claim markers with ML risk levels and visual emphasis for selected district
 function createClaimMarkerIcon(riskLevel, isSelected, isInSelectedDistrict) {
@@ -456,44 +450,13 @@ export default function StateGISMap({
               const districtName = formatDistrictName(rawDist);
               const isDistSelected = isDistrictMatch(selectedDistrict, rawDist);
 
-              // Single active tooltip: opens only on hover, closed immediately on mouseout, drag, or click
-              layer.bindTooltip(
-                `<div style="font-family: monospace; font-size: 11px; color: #f8fafc; line-height: 1.3;">
-                  <strong style="color: #38bdf8; font-size: 12px;">${districtName}</strong>
-                  <div style="color: #94a3b8; font-size: 10px; margin-top: 2px;">
-                    ${isDistSelected ? "Currently active district" : "Click to select & highlight claims"}
-                  </div>
-                </div>`,
-                {
-                  sticky: true,
-                  className: "custom-leaflet-tooltip",
-                  opacity: 0.95,
-                }
-              );
-
               layer.on({
                 mouseover: (e) => {
                   const l = e.target;
                   const mapInstance = l._map;
-                  // If map is being dragged/moved, NEVER open tooltips
                   if (!mapInstance || mapInstance._isDraggingMap) {
-                    try {
-                      l.closeTooltip();
-                    } catch (err) {
-                      // ignore
-                    }
                     return;
                   }
-
-                  // Strictly ensure only ONE active district tooltip across the entire map
-                  if (mapInstance._activeDistrictLayer && mapInstance._activeDistrictLayer !== l) {
-                    try {
-                      mapInstance._activeDistrictLayer.closeTooltip();
-                    } catch (err) {
-                      // ignore
-                    }
-                  }
-                  mapInstance._activeDistrictLayer = l;
 
                   l.setStyle({
                     weight: 2.4,
@@ -502,22 +465,36 @@ export default function StateGISMap({
                     fillOpacity: isDistSelected ? 0.3 : 0.16,
                   });
                   l.bringToFront();
-                  try {
-                    l.openTooltip(e.latlng);
-                  } catch (err) {
-                    // ignore
+
+                  if (mapInstance._districtTooltip) {
+                    const tooltipContent = `
+                      <div style="font-family: monospace; font-size: 11px; color: #f8fafc; line-height: 1.3;">
+                        <strong style="color: #38bdf8; font-size: 12px;">${districtName}</strong>
+                        <div style="color: #94a3b8; font-size: 10px; margin-top: 2px;">
+                          ${isDistSelected ? "Currently active district" : "Click to select & highlight claims"}
+                        </div>
+                      </div>`;
+                    mapInstance._districtTooltip
+                      .setContent(tooltipContent)
+                      .setLatLng(e.latlng);
+                    if (!mapInstance.hasLayer(mapInstance._districtTooltip)) {
+                      mapInstance._districtTooltip.openOn(mapInstance);
+                    }
+                  }
+                },
+                mousemove: (e) => {
+                  const l = e.target;
+                  const mapInstance = l._map;
+                  if (!mapInstance || mapInstance._isDraggingMap) return;
+                  if (mapInstance._districtTooltip && mapInstance.hasLayer(mapInstance._districtTooltip)) {
+                    mapInstance._districtTooltip.setLatLng(e.latlng);
                   }
                 },
                 mouseout: (e) => {
                   const l = e.target;
-                  try {
-                    l.closeTooltip();
-                  } catch (err) {
-                    // ignore
-                  }
                   const mapInstance = l._map;
-                  if (mapInstance && mapInstance._activeDistrictLayer === l) {
-                    mapInstance._activeDistrictLayer = null;
+                  if (mapInstance && mapInstance._districtTooltip) {
+                    mapInstance._districtTooltip.close();
                   }
                   l.setStyle({
                     fillColor: "#0891b2",
@@ -529,27 +506,10 @@ export default function StateGISMap({
                 },
                 click: (e) => {
                   const l = e.target;
-                  // Immediately close tooltip so it never remains permanently open
-                  try {
-                    l.closeTooltip();
-                  } catch (err) {
-                    // ignore
-                  }
                   const mapInstance = l._map || e.sourceTarget?._map;
-                  if (mapInstance) {
-                    if (mapInstance._activeDistrictLayer) {
-                      try {
-                        mapInstance._activeDistrictLayer.closeTooltip();
-                      } catch (err) {
-                        // ignore
-                      }
-                      mapInstance._activeDistrictLayer = null;
-                    }
-                    try {
-                      mapInstance.closeTooltip();
-                    } catch (err) {
-                      // ignore
-                    }
+                  // Immediately close tooltip on click so no tooltip stays open after selecting
+                  if (mapInstance && mapInstance._districtTooltip) {
+                    mapInstance._districtTooltip.close();
                   }
 
                   if (onSelectDistrict) {

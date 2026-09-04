@@ -6,16 +6,19 @@ export default function Header() {
   const isStateView = location.pathname.startsWith("/state");
 
   return (
-    <header className="bg-[#080c14] border-b border-slate-800/80 px-4 lg:px-6 py-2.5">
-      <div className="max-w-7xl mx-auto flex items-center justify-between">
+    <header className="bg-[#080c14] border-b border-slate-800/80 px-3 lg:px-5 py-2.5">
+      <div className="w-full flex items-center justify-between">
         {/* Simple Branding */}
         <Link to="/" className="flex items-center gap-2.5 group">
           <div className="w-8 h-8 rounded-lg bg-cyan-950/70 border border-cyan-500/40 flex items-center justify-center text-cyan-400 group-hover:border-cyan-400 transition-all">
             <Shield className="w-4 h-4" />
           </div>
-          <div>
-            <span className="text-base font-bold tracking-tight text-white">
+          <div className="flex items-baseline gap-2">
+            <span className="text-base font-bold tracking-tight text-white group-hover:text-cyan-400 transition-colors">
               CANOPY
+            </span>
+            <span className="text-[11px] text-slate-400 font-mono hidden sm:inline tracking-wider">
+              FRA Decision Support System
             </span>
           </div>
         </Link>
