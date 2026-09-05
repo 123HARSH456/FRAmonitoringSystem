@@ -317,10 +317,10 @@ export default function StateGISMap({
     const isDistSelected = isDistrictMatch(selectedDistrict, rawDist);
     return {
       fillColor: primary,
-      fillOpacity: districtsLoaded ? (isDistSelected ? 0.32 : 0.08) : 0,
-      color: isDistSelected ? highlight : "rgba(187, 132, 147, 0.4)",
-      weight: isDistSelected ? 2.5 : 1.0,
-      opacity: districtsLoaded ? 0.95 : 0,
+      fillOpacity: isDistSelected ? 0.32 : 0.08,
+      color: isDistSelected ? highlight : "rgba(219, 175, 160, 0.65)",
+      weight: isDistSelected ? 2.5 : 1.4,
+      opacity: 0.95,
       className: "district-fade-in",
     };
   };

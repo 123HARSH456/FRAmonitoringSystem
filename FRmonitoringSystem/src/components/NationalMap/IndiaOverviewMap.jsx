@@ -152,8 +152,8 @@ function MapTouchController({ isDraggingRef }) {
 
     const onPointerMove = (e) => {
       if (e.pointerType === "mouse" && e.buttons === 0) return;
-      // 5-10px movement threshold classifies gesture as DRAG
-      const threshold = e.pointerType === "touch" ? 12 : 8;
+      // Movement threshold: 12px for mouse, 16px for touch (prevents click micro-jitter from blocking first click)
+      const threshold = e.pointerType === "touch" ? 16 : 12;
       const dx = Math.abs(e.clientX - startX);
       const dy = Math.abs(e.clientY - startY);
       if (dx > threshold || dy > threshold) {
