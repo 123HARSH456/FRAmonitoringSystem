@@ -1173,7 +1173,6 @@ export default function IndiaOverviewMap() {
                   </div>
 
                   <div className="flex items-center gap-2 font-mono text-[10px]">
-                    <span className="text-[#c2a3b0]/70">{s.code}</span>
                     {sStats.criticalAnomalies > 0 && (
                       <span className="px-1 py-0.2 rounded bg-rose-950/80 text-rose-400 border border-rose-800/60 font-semibold text-[9px]">
                         {sStats.criticalAnomalies} alert{sStats.criticalAnomalies > 1 ? "s" : ""}
