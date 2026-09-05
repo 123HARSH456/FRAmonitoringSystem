@@ -1,6 +1,6 @@
 {
-  "buildCommand": "npm run build",
-  "outputDirectory": "dist",
+  "buildCommand": "cd FRmonitoringSystem && npm run build",
+  "outputDirectory": "FRmonitoringSystem/dist",
   "framework": "vite",
   "rewrites": [
     { "source": "/(.*)", "destination": "/" }
