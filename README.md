@@ -1,108 +1,122 @@
-# CANOPY — Community Access & Navigation for Ownership and Protection of Yields
+# CANOPY — Forest Rights Act (FRA) Monitoring System
 
-A web application and anomaly detection system for tracking, reviewing, and verifying Forest Rights Act claims across India.
+CANOPY (Community Access & Navigation for Ownership and Protection of Yields) is a web-based dashboard and GIS monitoring tool for tracking, reviewing, and verifying Forest Rights Act (FRA 2006) claims across India.
 
-## What This Project Does
+## Overview
 
-The Forest Rights Act (FRA) recognizes the rights of forest-dwelling communities to forest land and resources. Processing and verifying these claims requires checking land areas, official records, and satellite data across many districts.
+The Forest Rights Act recognizes the rights of forest-dwelling tribal communities and traditional forest dwellers to forest land and resources. Reviewing these claims requires verifying land boundaries, official records, processing timelines, and ground-level land cover.
 
-This system provides:
-- A national dashboard showing claim statistics across states.
-- An interactive map view using satellite imagery to inspect district boundaries and specific claim plots.
-- An anomaly detection model that flags suspicious claims (such as large differences between claimed and recorded land area).
-- A claim details panel with optional AI explanations to help officers quickly review flagged applications.
+CANOPY provides:
+- A national overview of claim statistics across Indian states and union territories.
+- Interactive GIS maps using high-resolution satellite imagery with official state and district boundaries.
+- An anomaly detection engine that flags suspicious claims based on land area mismatches, processing delays, and land-use shifts.
+- A claim investigation panel with structured evidence checklists and audit trails to assist reviewing officers.
+- Multiple visual themes for different lighting conditions and user preferences.
+- Responsive mobile and desktop layouts.
 
-## Key Features
+## Features
 
-- National Overview: View total claims, approval rates, and state-wise numbers on a map.
-- State and District Level GIS: Explore claims overlaid on Esri satellite imagery with district boundaries.
-- Claim Inspection: Click on any claim to view applicant details, claimed area, recorded area, and processing timeline.
-- Anomaly Detection: An Isolation Forest machine learning model flags claims that have abnormal data patterns.
-- Plain-Language Explanations: Uses the Gemini API to summarize why a claim was flagged, helping non-technical reviewers make decisions.
+- National Overview Map: View total claims received, approved, rejected, and pending across India, along with state-by-state approval rates.
+- State-Level GIS Explorer: Inspect individual state boundaries with masked satellite imagery (Esri World Imagery) and district-level outlines.
+- Claim Inspection: Click on any claim marker to review applicant information, claimed area versus recorded area, and processing status.
+- Evidence & Anomaly Detection: An Isolation Forest machine learning model and rule checks detect abnormal claim patterns, such as significant area discrepancies.
+- Theme Customization: Switch between multiple built-in color themes (including Forest Dark, Modern Green, Midnight Navy, Forest Slate, and High Contrast).
+- Mobile Support: Responsive design with a bottom sheet drawer for smooth navigation on mobile screens.
 
 ## Tech Stack
 
 - Frontend: React 19, Vite, Tailwind CSS v4, React Router
-- Maps: Leaflet, React Leaflet, Esri World Imagery
+- Maps & GIS: Leaflet, React-Leaflet, Esri World Imagery, GeoJSON boundary masks
+- Icons: Lucide React
 - Machine Learning: Python, scikit-learn (Isolation Forest), NumPy, Joblib
-- AI Service: Google Gemini API (optional)
+- Deployment: Vercel
 
 ## Project Structure
 
 ```
 FRmonitoringSystem/
   src/
-    components/      UI components (maps, claim panels, header)
-    pages/           Page layouts (National Overview, State Monitoring)
-    data/            GeoJSON maps, sample claims, state statistics
-    services/        Data handling, anomaly checks, and Gemini API calls
-    utils/           Helper functions for formatting and caching
+    components/
+      NationalMap/     India overview map and state summary components
+      StateMap/        Satellite GIS map and district boundary layers
+      ClaimPanel/      Claim inspection, evidence details, and audit panels
+      common/          Header, navigation, and theme selector
+    context/           Theme context and state management
+    data/              Sample claims, state statistics, and GeoJSON boundaries
+    services/          Claim filtering, calculations, and anomaly checks
+    utils/             Formatting and caching helpers
   ml/
-    train.py         Python script to train the anomaly detection model
-    requirements.txt Python dependencies for training
-    model.pkl        Trained Isolation Forest model
-    results.json     Model evaluation results
-  public/            Static assets and GeoJSON map files
+    train.py           Training script for the Isolation Forest anomaly detector
+    requirements.txt   Python package dependencies for ML
+    model.pkl          Serialized trained model
+    results.json       Training evaluation metrics
+  public/              Static assets, logos, and high-resolution state mask files
+  scripts/             Utility scripts for boundary verification and mask generation
 ```
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js (version 18 or higher)
-- npm (comes with Node.js)
-- Python 3.8+ (only needed if you want to retrain the machine learning model)
+- Node.js (version 18 or later)
+- npm (installed automatically with Node.js)
+- Python 3.8+ (optional, only needed if retraining the ML model)
 
 ### Installation
 
-1. Navigate to the application folder:
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/123HARSH456/FRAmonitoringSystem.git
+   cd FRAmonitoringSystem
+   ```
+
+2. Navigate to the project directory:
    ```bash
    cd FRmonitoringSystem
    ```
 
-2. Install the required packages:
+3. Install the dependencies:
    ```bash
    npm install
    ```
 
-3. Configure environment variables (optional):
-   Copy the example environment file:
-   ```bash
-   cp .env.example .env
-   ```
-   Open `.env` and add your Google Gemini API key if you want to use the AI claim explanation feature. The application works without this key, but the AI explanation feature will be disabled.
-
-### Running the Application
+### Running Locally
 
 Start the local development server:
 ```bash
 npm run dev
 ```
 
-Vite will print a local URL in your terminal (usually `http://localhost:5173`). Open that URL in your web browser.
+Open the URL shown in your terminal (usually http://localhost:5173) in your web browser.
 
 ### Building for Production
 
-To create an optimized production build:
+To create a production build:
 ```bash
 npm run build
 ```
 
-The output will be saved to the `dist` folder. You can preview the build locally with:
+To preview the production build locally:
 ```bash
 npm run preview
 ```
 
+### Deployment
+
+This project includes configuration for deployment on Vercel:
+- The root `vercel.json` is configured to build `FRmonitoringSystem` and serve the `dist` directory.
+- The app can be connected directly to Vercel via GitHub or deployed using the Vercel CLI.
+
 ## Machine Learning Model
 
-The project includes an unsupervised machine learning model that detects anomalies in claims.
+The project includes an unsupervised machine learning model that flags irregular claims for manual audit.
 
-- Model type: Isolation Forest (scikit-learn)
-- Inputs used: Claimed area, recorded area, processing days, land cover change, and percentage mismatch between claimed and recorded area.
-- Excluded from training: Personal identifiers, state, district, and status.
+- Algorithm: Isolation Forest (scikit-learn)
+- Features used: Claimed area, recorded area, processing days, land cover change index, and percentage mismatch between claimed and recorded area.
+- Excluded from training: Personal identifiers, names, locations, and application status.
 
-To retrain or run the model:
-1. Navigate to the ml folder:
+To retrain the model:
+1. Navigate to the `ml` folder:
    ```bash
    cd FRmonitoringSystem/ml
    ```
@@ -114,8 +128,8 @@ To retrain or run the model:
    ```bash
    python train.py
    ```
-This will update `model.pkl` and save performance metrics in `results.json`.
+This updates `model.pkl` and writes summary metrics to `results.json`.
 
 ## License
 
-This project was built for hackathon demonstration and research purposes.
+This project is open-source and intended for hackathon demonstration, research, and educational purposes.
